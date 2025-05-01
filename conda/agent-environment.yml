@@ -1,0 +1,22 @@
+# Copyright 2024-2025 Amazon.com, Inc. or its affiliates.
+
+name: osml_geo_agents
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.12.9
+  - conda-forge::numpy=2.2.4
+  - conda-forge::dask=2025.3.0
+  - conda-forge::gdal=3.8.5
+  - conda-forge::proj=9.4.1
+  - conda-forge::boto3=1.34.104
+  - conda-forge::geopandas=1.0.1
+  - conda-forge::dask-geopandas=0.4.3
+  - conda-forge::pystac=1.13.0
+  - conda-forge::pystac-client=0.8.6
+  - conda-forge::pip=24.0
+  - conda-forge::awslambdaric=2.2.0
+  - pip:
+      - osml-imagery-toolkit>=1.4.2
+      - python-json-logger==2.0.7
