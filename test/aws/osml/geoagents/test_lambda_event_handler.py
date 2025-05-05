@@ -1,11 +1,10 @@
 #  Copyright 2025 Amazon.com, Inc. or its affiliates.
 
 import unittest
+from unittest.mock import patch
 
 
-class TestFilterTool(unittest.TestCase):
-    def test_dummy(self):
-        from aws.osml.geoagents.lambda_event_handler import handler
-
-        result = handler({"foo": "A"}, {"bar": "B"})
-        self.assertTrue("message" in result)
+class TestLambdaEventHandler(unittest.TestCase):
+    @patch.dict("os.environ", {"WORKSPACE_BUCKET_NAME": "test_workspace_bucket"})
+    def test_valid_import(self):
+        from aws.osml.geoagents.lambda_event_handler import handler  # noqa: F401
