@@ -27,6 +27,12 @@ class Georeference:
 
     def __post_init__(self):
         """Validates and parses the georeference string after initialization."""
+        if not self.encoded_value:
+            raise ValueError("Georeference cannot be empty")
+
+        if not isinstance(self.encoded_value, str):
+            raise ValueError("Georeference must be a string")
+
         if not self.encoded_value.startswith(GEOREF_PROTOCOL):
             raise ValueError(f"Georeference must start with '{GEOREF_PROTOCOL}'")
 

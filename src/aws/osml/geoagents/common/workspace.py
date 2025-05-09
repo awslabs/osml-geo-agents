@@ -84,6 +84,9 @@ class Workspace:
         :param selected_asset_keys: an optional list of asset keys to download
         :return: a map between asset keys and their path on the local disk
         """
+        if not item:
+            raise ValueError("item can not be None.")
+
         asset_paths = {}
 
         # Filter assets if selected_asset_keys is provided

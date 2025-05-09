@@ -15,7 +15,9 @@ def create_tool_router() -> ToolRouter:
 
     tool_registry = ToolRegistry()
 
-    # TODO: Register individual tools
+    from .spatial import FilterTool
+
+    tool_registry.register_tool(FilterTool())
 
     return ToolRouter(
         tool_registry=tool_registry,
