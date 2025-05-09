@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-from .tool_base import ToolBase
+from .tool_base import ToolBase, ToolExecutionError
 from .tool_registry import ToolRegistry
 from .workspace import Workspace
 
@@ -57,6 +57,9 @@ class ToolRouter:
 
             return tool.handler(event, context, workspace)
 
+        except ToolExecutionError as txe:
+            error_response = ToolBase.create_action_response(event, txe.message, is_error=True)
+            return error_response
         except Exception as e:
             error_response = ToolBase.create_action_response(event, str(e), is_error=True)
             return error_response

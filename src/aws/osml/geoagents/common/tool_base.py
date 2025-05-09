@@ -7,6 +7,25 @@ from typing import Any, Optional, Tuple
 from .workspace import Workspace
 
 
+class ToolExecutionError(Exception):
+    """
+    Exception class for errors that will pass specific information back to the
+    LLM orchestrator.
+    """
+
+    def __init__(self, message: str):
+        """
+        Construct an exception with a message that should be passed on to the LLM
+        orchestrator invoking this tool. The message should have enough information
+        so the orchestrator can diagnose and correct an error if it is a problem
+        that can be fixed by altering parameters.
+
+        :param message: a natural language error message describing the issue
+        """
+        self.message = message
+        super().__init__(self.message)
+
+
 class ToolBase(ABC):
     """
     This is the base class for all the geoagent tools defined in this package. It
@@ -61,6 +80,7 @@ class ToolBase(ABC):
         :param event: the Lambda input event from Bedrock
         :param context: the Lambda context object for this handler
         :param workspace: the user workspace for storing large geospatial assets
+        :raises ToolExecutionError: the tool was unable to process the event
         :return: the Lambda response structure for Bedrock
         """
 
