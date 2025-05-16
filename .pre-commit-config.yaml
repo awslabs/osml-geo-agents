@@ -60,6 +60,14 @@ repos:
             examples/.*|
             schemas/.*|
             test/data/.*|
+            cdk/osml-geo-agents-config/.*|
+            cdk/cdk.json|
+            cdk/.gitignore|
+            cdk/jest.config.js|
+            cdk/.npmignore|
+            cdk/tsconfig.json|
+            cdk/package.json|
+            cdk/package-lock.json|
             LICENSE|
             py.typed|
             pyproject.toml|
@@ -77,6 +85,14 @@ repos:
             examples/.*|
             schemas/.*|
             test/data/.*|
+            cdk/osml-geo-agents-config/.*|
+            cdk/cdk.json|
+            cdk/.gitignore|
+            cdk/jest.config.js|
+            cdk/.npmignore|
+            cdk/tsconfig.json|
+            cdk/package.json|
+            cdk/package-lock.json|
             LICENSE|
             py.typed|
             pyproject.toml|

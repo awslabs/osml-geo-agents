@@ -1,0 +1,27 @@
+[
+  {
+    "actionGroupName": "SpatialReasoning",
+    "description": "Actions that perform geospatial reasoning operations on datasets.",
+    "functionSchema": {
+      "functions": [
+        {
+          "name": "FILTER",
+          "description": "Select a subset of the dataset features.",
+          "parameters": {
+            "dataset": {
+              "type": "string",
+              "description": "A georeference for the dataset.",
+              "required": true
+            },
+            "filter": {
+              "type": "string",
+              "description": "A georeference or literal in WKT format (ex. bbox) used to filter the dataset.",
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "skipResourceInUseCheckOnDelete": true
+  }
+]
