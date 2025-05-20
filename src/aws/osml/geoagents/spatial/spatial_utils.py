@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Tuple
 
 import geopandas as gpd
+import pyarrow.parquet as pq
 from pystac import Item
 
 from ..common import Georeference, ToolExecutionError, Workspace
@@ -29,6 +30,22 @@ def is_parquet_file(file_path: Path) -> bool:
         return False
 
 
+def read_field_descriptions_from_parquet(file_path: Path) -> dict[str, str]:
+    """
+    Read field descriptions from column metadata stored in a Parquet file.
+
+    :param file_path: Path to the Parquet file
+    :return: A dictionary of field names and their descriptions
+    """
+    result = {}
+    schema = pq.read_table(file_path).schema
+    for name in schema.names:
+        field = schema.field(name)
+        if field.metadata and b"comment" in field.metadata:
+            result[name] = field.metadata[b"comment"].decode("utf-8")
+    return result
+
+
 def read_geo_data_frame(file_path: Path) -> gpd.GeoDataFrame:
     """
     Read a GeoDataFrame from a file.
@@ -44,10 +61,12 @@ def read_geo_data_frame(file_path: Path) -> gpd.GeoDataFrame:
     try:
         if is_parquet_file(file_path):
             gdf = gpd.read_parquet(file_path)
+            gdf.attrs["column-descriptions"] = read_field_descriptions_from_parquet(file_path)
         else:
             gdf = gpd.GeoDataFrame.from_file(file_path)
         if gdf is None:
             raise ToolExecutionError(f"Unable to create GeoDataFrame from: {file_path.name}")
+
         return gdf
     except Exception as e:
         logger.info(f"Unable to create GeoDataFrame from: {file_path.name}", e)
@@ -85,6 +104,21 @@ def download_georef_from_workspace(dataset_georef: Georeference, workspace: Work
         logger.info(f"Unable to download dataset: {dataset_georef}", e)
         raise ToolExecutionError(f"Unable to access the dataset: {dataset_georef} in the shared workspace.")
     return item, local_assets
+
+
+def validate_dataset_crs(dataset: gpd.GeoDataFrame, georef: Georeference) -> None:
+    """
+    Validate and ensure a GeoDataFrame has a CRS set and is using EPSG:4326 coordinates.
+    If the CRS is not set EPSG:4326 will be assumed and it will be set.
+
+    :param dataset: GeoDataFrame to validate
+    :param georef: Georeference for the dataset
+    :raises ToolExecutionError: if the dataset uses an unsupported CRS
+    """
+    if dataset.crs is None:
+        dataset.set_crs("EPSG:4326", inplace=True)
+    elif dataset.crs != "EPSG:4326":
+        raise ToolExecutionError(f"Dataset {georef} does not use a supported CRS. Only EPSG:4326 is supported.")
 
 
 def create_derived_stac_item(
