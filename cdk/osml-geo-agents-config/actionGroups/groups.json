@@ -19,6 +19,16 @@
               "required": true
             }
           }
+        },{
+          "name": "SUMMARIZE",
+          "description": "Describe a dataset including summary statistics and information about each column.",
+          "parameters": {
+            "dataset": {
+              "type": "string",
+              "description": "A georeference for the dataset.",
+              "required": true
+            }
+          }
         }
       ]
     },

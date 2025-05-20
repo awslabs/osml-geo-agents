@@ -15,9 +15,10 @@ def create_tool_router() -> ToolRouter:
 
     tool_registry = ToolRegistry()
 
-    from .spatial import FilterTool
+    from .spatial import FilterTool, SummarizeTool
 
     tool_registry.register_tool(FilterTool())
+    tool_registry.register_tool(SummarizeTool())
 
     return ToolRouter(
         tool_registry=tool_registry,

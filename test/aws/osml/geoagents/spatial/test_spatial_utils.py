@@ -14,6 +14,7 @@ from aws.osml.geoagents.spatial.spatial_utils import (
     create_derived_stac_item,
     download_georef_from_workspace,
     is_parquet_file,
+    read_field_descriptions_from_parquet,
     read_geo_data_frame,
     write_geo_data_frame,
 )
@@ -42,14 +43,39 @@ class TestSpatialUtils(unittest.TestCase):
             result = is_parquet_file(Path("nonexistent.parquet"))
             self.assertFalse(result)
 
+    @patch("pyarrow.parquet.read_table")
+    def test_read_field_descriptions_from_parquet(self, mock_read_table):
+        # Mock the schema with field metadata
+        mock_schema = Mock()
+        mock_field = Mock()
+        mock_field.metadata = {b"comment": b"Test description"}
+        mock_schema.names = ["test_field"]
+        mock_schema.field.return_value = mock_field
+        mock_read_table.return_value.schema = mock_schema
+
+        result = read_field_descriptions_from_parquet(Path("test.parquet"))
+
+        self.assertEqual(result, {"test_field": "Test description"})
+        mock_read_table.assert_called_once()
+        mock_schema.field.assert_called_once_with("test_field")
+
     @patch("geopandas.read_parquet")
-    def test_read_geo_data_frame_parquet(self, mock_read_parquet):
-        mock_read_parquet.return_value = self.sample_gdf
+    @patch("aws.osml.geoagents.spatial.spatial_utils.read_field_descriptions_from_parquet")
+    def test_read_geo_data_frame_parquet(self, mock_read_descriptions, mock_read_parquet):
+        # Create sample GeoDataFrame with column descriptions
+        sample_gdf = self.sample_gdf.copy()
+        column_descriptions = {"data": "Test column description"}
+
+        mock_read_parquet.return_value = sample_gdf
+        mock_read_descriptions.return_value = column_descriptions
 
         with patch("aws.osml.geoagents.spatial.spatial_utils.is_parquet_file", return_value=True):
             result = read_geo_data_frame(Path("test.parquet"))
+
             self.assertIsInstance(result, gpd.GeoDataFrame)
+            self.assertEqual(result.attrs.get("column-descriptions"), column_descriptions)
             mock_read_parquet.assert_called_once()
+            mock_read_descriptions.assert_called_once()
 
     @patch("geopandas.GeoDataFrame.from_file")
     def test_read_geo_data_frame_non_parquet(self, mock_from_file):
