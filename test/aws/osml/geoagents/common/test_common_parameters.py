@@ -1,9 +1,18 @@
 #  Copyright 2025 Amazon.com, Inc. or its affiliates.
 
 import unittest
+from enum import Enum, auto
 
 from aws.osml.geoagents.common.common_parameters import CommonParameters
 from aws.osml.geoagents.common.tool_base import ToolExecutionError
+
+
+class TestEnum(Enum):
+    """Test enumeration for parse_enum_parameter tests."""
+
+    RED = auto()
+    GREEN = auto()
+    BLUE = auto()
 
 
 class TestCommonParameters(unittest.TestCase):
@@ -159,6 +168,235 @@ class TestCommonParameters(unittest.TestCase):
         }
 
         result = CommonParameters.parse_shape_parameter(event, is_required=False)
+        self.assertIsNone(result)
+
+    def test_parse_distance_valid(self):
+        """Test parsing valid positive number."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "distance", "value": "100.5", "type": "string"}],
+        }
+
+        distance = CommonParameters.parse_distance(event)
+        self.assertEqual(distance, 100.5)
+
+    def test_parse_distance_invalid_string(self):
+        """Test parsing invalid string raises error regardless of is_required."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "distance", "value": "not a number", "type": "string"}],
+        }
+
+        # Should raise error even when parameter is optional
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_distance(event, is_required=False)
+        self.assertIn("Unable to parse", str(context.exception))
+
+        # Should raise error when parameter is required
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_distance(event, is_required=True)
+        self.assertIn("Unable to parse", str(context.exception))
+
+    def test_parse_distance_negative(self):
+        """Test parsing negative number raises error."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "distance", "value": "-10", "type": "string"}],
+        }
+
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_distance(event)
+        self.assertIn("Unable to parse", str(context.exception))
+
+    def test_parse_distance_custom_param_name(self):
+        """Test parsing distance with custom parameter name."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "custom_distance", "value": "50", "type": "string"}],
+        }
+
+        distance = CommonParameters.parse_distance(event, param_name="custom_distance")
+        self.assertEqual(distance, 50.0)
+
+    def test_parse_distance_missing_required(self):
+        """Test handling of missing required parameter."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [],
+        }
+
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_distance(event, is_required=True)
+        self.assertIn("Missing required parameter", str(context.exception))
+
+    def test_parse_distance_missing_optional(self):
+        """Test handling of missing optional parameter."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [],
+        }
+
+        result = CommonParameters.parse_distance(event, is_required=False)
+        self.assertIsNone(result)
+
+    def test_parse_enum_parameter_valid(self):
+        """Test parsing valid enum value."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "color", "value": "RED", "type": "string"}],
+        }
+
+        enum_value = CommonParameters.parse_enum_parameter(event, TestEnum, "color")
+        self.assertEqual(enum_value, TestEnum.RED)
+
+    def test_parse_enum_parameter_case_insensitive(self):
+        """Test parsing enum value is case-insensitive."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "color", "value": "blue", "type": "string"}],
+        }
+
+        enum_value = CommonParameters.parse_enum_parameter(event, TestEnum, "color")
+        self.assertEqual(enum_value, TestEnum.BLUE)
+
+    def test_parse_enum_parameter_invalid_value(self):
+        """Test parsing invalid enum value raises error regardless of is_required."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "color", "value": "YELLOW", "type": "string"}],
+        }
+
+        # Should raise error even when parameter is optional
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_enum_parameter(event, TestEnum, "color", is_required=False)
+        self.assertIn("Unable to parse", str(context.exception))
+
+        # Should raise error when parameter is required
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_enum_parameter(event, TestEnum, "color", is_required=True)
+        self.assertIn("Unable to parse", str(context.exception))
+
+    def test_parse_enum_parameter_invalid_type(self):
+        """Test parsing non-string value raises error."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "color", "value": {"invalid": "type"}, "type": "object"}],
+        }
+
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_enum_parameter(event, TestEnum, "color")
+        self.assertIn("Unable to parse", str(context.exception))
+
+    def test_parse_enum_parameter_invalid_enum_class(self):
+        """Test providing invalid enum_class raises error."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "color", "value": "RED", "type": "string"}],
+        }
+
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_enum_parameter(event, str, "color")  # type: ignore
+        self.assertIn("Invalid enum_class parameter", str(context.exception))
+
+    def test_parse_enum_parameter_custom_param_name(self):
+        """Test parsing enum with custom parameter name."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "custom_color", "value": "GREEN", "type": "string"}],
+        }
+
+        enum_value = CommonParameters.parse_enum_parameter(event, TestEnum, "custom_color")
+        self.assertEqual(enum_value, TestEnum.GREEN)
+
+    def test_parse_enum_parameter_missing_required(self):
+        """Test handling of missing required parameter."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [],
+        }
+
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_enum_parameter(event, TestEnum, "color", is_required=True)
+        self.assertIn("Missing required parameter", str(context.exception))
+
+    def test_parse_enum_parameter_missing_optional(self):
+        """Test handling of missing optional parameter."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [],
+        }
+
+        result = CommonParameters.parse_enum_parameter(event, TestEnum, "color", is_required=False)
+        self.assertIsNone(result)
+
+    def test_parse_string_parameter_valid(self):
+        """Test parsing valid string."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "text", "value": "Hello World", "type": "string"}],
+        }
+
+        text = CommonParameters.parse_string_parameter(event, "text")
+        self.assertEqual(text, "Hello World")
+
+    def test_parse_string_parameter_non_string_value(self):
+        """Test parsing non-string value is converted to string."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "text", "value": 42, "type": "number"}],
+        }
+
+        text = CommonParameters.parse_string_parameter(event, "text")
+        self.assertEqual(text, "42")
+
+    def test_parse_string_parameter_custom_param_name(self):
+        """Test parsing string with custom parameter name."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "custom_text", "value": "Custom Value", "type": "string"}],
+        }
+
+        text = CommonParameters.parse_string_parameter(event, "custom_text")
+        self.assertEqual(text, "Custom Value")
+
+    def test_parse_string_parameter_missing_required(self):
+        """Test handling of missing required parameter."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [],
+        }
+
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_string_parameter(event, "text", is_required=True)
+        self.assertIn("Missing required parameter", str(context.exception))
+
+    def test_parse_string_parameter_missing_optional(self):
+        """Test handling of missing optional parameter."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [],
+        }
+
+        result = CommonParameters.parse_string_parameter(event, "text", is_required=False)
         self.assertIsNone(result)
 
 

@@ -29,6 +29,30 @@
               "required": true
             }
           }
+        },{
+          "name": "CORRELATE",
+          "description": "Compute a new dataset by correlating features from two datasets.",
+          "parameters": {
+            "dataset1": {
+              "type": "string",
+              "description": "A georeference for the first dataset.",
+              "required": true
+            },
+            "dataset2": {
+              "type": "string",
+              "description": "A georeference for the second dataset.",
+              "required": true
+            },
+            "distance": {
+              "type": "string",
+              "description": "A distance in meters around the first dataset.",
+              "required": false
+            },"correlation_type": {
+              "type": "string",
+              "description": "The type of correlation to compute, which should be one of: intersection or difference",
+              "required": false
+            }
+          }
         }
       ]
     },
