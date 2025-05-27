@@ -44,18 +44,27 @@ class TestFilterTool(unittest.TestCase):
             assets={"data": Asset(href="s3://fake-test-bucket/data.parquet")},
         )
 
-    def test_handler_successful_filter(self):
+    @patch("aws.osml.geoagents.spatial.filter_tool.LocalAssets")
+    def test_handler_successful_filter(self, mock_context_manager):
         """Test successful filtering of a dataset."""
-        # Mock the workspace methods
-        self.mock_workspace.get_item.return_value = self.sample_item
-        self.mock_workspace.download_assets.return_value = {"data": Path("/tmp/test/sample.geojson")}
+        # Setup mock context manager
+        mock_context = Mock()
+        mock_enter = Mock()
+        mock_exit = Mock()
+        mock_context.__enter__ = mock_enter
+        mock_enter.return_value = (self.sample_item, {"data": Path("/tmp/test/sample.geojson")})
+        mock_context.__exit__ = mock_exit
+        mock_exit.return_value = None
+        mock_context_manager.return_value = mock_context
+
+        # Mock publish_item
         self.mock_workspace.publish_item = Mock()
 
         # Create sample GeoDataFrame for testing
         sample_gdf = gpd.GeoDataFrame({"geometry": [shapely.geometry.Point(0.5, 0.5), shapely.geometry.Point(1.5, 1.5)]})
 
-        # Mock GeoDataFrame.from_file
-        with patch("geopandas.GeoDataFrame.from_file", return_value=sample_gdf):
+        # Mock read_geo_data_frame
+        with patch("aws.osml.geoagents.spatial.filter_tool.read_geo_data_frame", return_value=sample_gdf):
             result = self.handler.handler(self.event, None, self.mock_workspace)
 
         # Verify the result
@@ -63,20 +72,26 @@ class TestFilterTool(unittest.TestCase):
         self.assertIn("georef:", str(result))
 
         # Verify workspace interactions
-        self.mock_workspace.get_item.assert_called_once()
-        self.mock_workspace.download_assets.assert_called_once()
         self.mock_workspace.publish_item.assert_called_once()
 
-    def test_empty_filter_result(self):
+    @patch("aws.osml.geoagents.spatial.filter_tool.LocalAssets")
+    def test_empty_filter_result(self, mock_context_manager):
         """Test handling of filter that results in empty dataset."""
-        self.mock_workspace.get_item.return_value = self.sample_item
-        self.mock_workspace.download_assets.return_value = {"data": Path("/tmp/test/sample.geojson")}
+        # Setup mock context manager
+        mock_context = Mock()
+        mock_enter = Mock()
+        mock_exit = Mock()
+        mock_context.__enter__ = mock_enter
+        mock_enter.return_value = (self.sample_item, {"data": Path("/tmp/test/sample.geojson")})
+        mock_context.__exit__ = mock_exit
+        mock_exit.return_value = None
+        mock_context_manager.return_value = mock_context
 
         # Create empty GeoDataFrame for testing
         empty_gdf = gpd.GeoDataFrame({"geometry": []})
 
-        # Mock GeoDataFrame.from_file
-        with patch("geopandas.GeoDataFrame.from_file", return_value=empty_gdf):
+        # Mock read_geo_data_frame
+        with patch("aws.osml.geoagents.spatial.filter_tool.read_geo_data_frame", return_value=empty_gdf):
             result = self.handler.handler(self.event, None, self.mock_workspace)
 
         # Verify the result indicates empty dataset

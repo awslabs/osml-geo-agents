@@ -59,13 +59,19 @@ class TestSummarizeTool(unittest.TestCase):
         self.assertEqual(self.tool.action_group, "SpatialReasoning")
         self.assertEqual(self.tool.function_name, "SUMMARIZE")
 
-    @patch("aws.osml.geoagents.spatial.summarize_tool.download_georef_from_workspace")
+    @patch("aws.osml.geoagents.spatial.summarize_tool.LocalAssets")
     @patch("aws.osml.geoagents.spatial.summarize_tool.read_geo_data_frame")
-    def test_handler_with_points(self, mock_read_gdf, mock_download):
+    def test_handler_with_points(self, mock_read_gdf, mock_context_manager):
         """Test handler with point geometry dataset."""
-        # Setup mock returns
-        test_path = Path("/tmp/test.geojson")
-        mock_download.return_value = (None, {0: test_path})
+        # Setup mock context manager
+        mock_context = Mock()
+        mock_enter = Mock()
+        mock_exit = Mock()
+        mock_context.__enter__ = mock_enter
+        mock_enter.return_value = (None, {0: Path("/tmp/test.geojson")})
+        mock_context.__exit__ = mock_exit
+        mock_exit.return_value = None
+        mock_context_manager.return_value = mock_context
         gdf = self.create_point_gdf()
         mock_read_gdf.return_value = gdf
 
@@ -92,13 +98,19 @@ class TestSummarizeTool(unittest.TestCase):
         self.assertIn("active: Boolean column", response_text)
         self.assertIn("timestamp: Date/time column", response_text)
 
-    @patch("aws.osml.geoagents.spatial.summarize_tool.download_georef_from_workspace")
+    @patch("aws.osml.geoagents.spatial.summarize_tool.LocalAssets")
     @patch("aws.osml.geoagents.spatial.summarize_tool.read_geo_data_frame")
-    def test_handler_with_polygons(self, mock_read_gdf, mock_download):
+    def test_handler_with_polygons(self, mock_read_gdf, mock_context_manager):
         """Test handler with polygon geometry dataset."""
-        # Setup mock returns
-        test_path = Path("/tmp/test.geojson")
-        mock_download.return_value = (None, {0: test_path})
+        # Setup mock context manager
+        mock_context = Mock()
+        mock_enter = Mock()
+        mock_exit = Mock()
+        mock_context.__enter__ = mock_enter
+        mock_enter.return_value = (None, {0: Path("/tmp/test.geojson")})
+        mock_context.__exit__ = mock_exit
+        mock_exit.return_value = None
+        mock_context_manager.return_value = mock_context
         gdf = self.create_polygon_gdf()
         mock_read_gdf.return_value = gdf
 
@@ -122,13 +134,19 @@ class TestSummarizeTool(unittest.TestCase):
         self.assertIn("area_name: General column", response_text)
         self.assertIn("area_size: Numeric column (float64) ranging from 1.0 to 1.0", response_text)
 
-    @patch("aws.osml.geoagents.spatial.summarize_tool.download_georef_from_workspace")
+    @patch("aws.osml.geoagents.spatial.summarize_tool.LocalAssets")
     @patch("aws.osml.geoagents.spatial.summarize_tool.read_geo_data_frame")
-    def test_handler_with_metadata(self, mock_read_gdf, mock_download):
+    def test_handler_with_metadata(self, mock_read_gdf, mock_context_manager):
         """Test handler processes column metadata correctly."""
-        # Setup mock returns
-        test_path = Path("/tmp/test.geojson")
-        mock_download.return_value = (None, {0: test_path})
+        # Setup mock context manager
+        mock_context = Mock()
+        mock_enter = Mock()
+        mock_exit = Mock()
+        mock_context.__enter__ = mock_enter
+        mock_enter.return_value = (None, {0: Path("/tmp/test.geojson")})
+        mock_context.__exit__ = mock_exit
+        mock_exit.return_value = None
+        mock_context_manager.return_value = mock_context
         gdf = self.create_gdf_with_metadata()
         mock_read_gdf.return_value = gdf
 
@@ -151,11 +169,18 @@ class TestSummarizeTool(unittest.TestCase):
         self.assertIn("value: Numeric column (int64) ranging from 10 to 30 (Measured intensity value)", response_text)
         self.assertIn("score: Numeric column (float64) ranging from 0.5 to 2.5 (Confidence score)", response_text)
 
-    @patch("aws.osml.geoagents.spatial.summarize_tool.download_georef_from_workspace")
-    def test_handler_error_handling(self, mock_download):
+    @patch("aws.osml.geoagents.spatial.summarize_tool.LocalAssets")
+    def test_handler_error_handling(self, mock_context_manager):
         """Test various error conditions in handler."""
-        # Test workspace download error
-        mock_download.side_effect = Exception("Failed to download")
+        # Test context manager error
+        mock_context = Mock()
+        mock_enter = Mock()
+        mock_exit = Mock()
+        mock_context.__enter__ = mock_enter
+        mock_enter.side_effect = Exception("Failed to load assets")
+        mock_context.__exit__ = mock_exit
+        mock_exit.return_value = None
+        mock_context_manager.return_value = mock_context
 
         event = {
             "actionGroup": "SpatialReasoning",

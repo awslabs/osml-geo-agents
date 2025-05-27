@@ -6,6 +6,7 @@
 
 from .common_parameters import CommonParameters
 from .georeference import Georeference
+from .local_assets import LocalAssets
 from .tool_base import ToolBase, ToolExecutionError
 from .tool_registry import ToolRegistry
 from .tool_router import ToolRouter

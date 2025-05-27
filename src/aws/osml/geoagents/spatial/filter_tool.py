@@ -5,12 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from ..common import CommonParameters, Georeference, ToolBase, ToolExecutionError, Workspace
-from .spatial_utils import (
-    create_derived_stac_item,
-    download_georef_from_workspace,
-    read_geo_data_frame,
-    write_geo_data_frame,
-)
+from ..common.local_assets import LocalAssets
+from .spatial_utils import create_derived_stac_item, read_geo_data_frame, write_geo_data_frame
 
 logger = logging.getLogger(__name__)
 
@@ -49,46 +45,44 @@ class FilterTool(ToolBase):
             f"Function: {event['function']} with parameters: {event.get('parameters', [])}"
         )
 
-        local_assets = {}
         filtered_dataset_path = None
         try:
             # Parse and validate the required parameters
             dataset_georef = CommonParameters.parse_dataset_georef(event, is_required=True)
             filter_bounds = CommonParameters.parse_shape_parameter(event, param_name="filter", is_required=True)
 
-            # Use workspace to access a geospatial dataset
-            item, local_assets = download_georef_from_workspace(dataset_georef, workspace)
+            # Use context manager to handle local assets
+            with LocalAssets(dataset_georef, workspace) as (item, local_asset_paths):
+                # Select the assets to process and load them into memory
+                # TODO: Decide what to do for STAC items that have multiple assets. Maybe we should add some
+                #       logic to select an asset we know how to process (either by preferred asset keys
+                #       or media type).
+                selected_asset_key = next(iter(local_asset_paths))
+                local_dataset_path = local_asset_paths[selected_asset_key]
+                gdf = read_geo_data_frame(local_dataset_path)
 
-            # Select the assets to process and load them into memory
-            # TODO: Decide what to do for STAC items that have multiple assets. Maybe we should add some
-            #       logic to select an asset we know how to process (either by preferred asset keys
-            #       or media type).
-            selected_asset_key = next(iter(local_assets))
-            local_dataset_path = local_assets[selected_asset_key]
-            gdf = read_geo_data_frame(local_dataset_path)
+                # Run the filter operation
+                filtered_gdf = gdf[gdf.intersects(filter_bounds)]
 
-            # Run the filter operation
-            filtered_gdf = gdf[gdf.intersects(filter_bounds)]
+                # Generate summary text describing the result
+                filtered_dataset_title = f"Filtered {item.properties['title']}"
+                filtered_dataset_summary = (
+                    f"This dataset contains {len(filtered_gdf)} features selected from "
+                    f"{dataset_georef} because they were within the boundary of "
+                    f"{filter_bounds}. "
+                )
 
-            # Generate summary text describing the result
-            filtered_dataset_title = f"Filtered {item.properties['title']}"
-            filtered_dataset_summary = (
-                f"This dataset contains {len(filtered_gdf)} features selected from "
-                f"{dataset_georef} because they were within the boundary of "
-                f"{filter_bounds}. "
-            )
+                # Write the derived dataset to the local workspace cache
+                filtered_dataset_reference = Georeference.new_random(asset_tag=selected_asset_key)
+                filtered_dataset_path = Path(
+                    workspace.session_local_path, filtered_dataset_reference.item_id, f"filtered-{local_dataset_path.name}"
+                )
+                write_geo_data_frame(filtered_dataset_path, filtered_gdf)
 
-            # Write the derived dataset to the local workspace cache
-            filtered_dataset_reference = Georeference.new_random(asset_tag=selected_asset_key)
-            filtered_dataset_path = Path(
-                workspace.session_local_path, filtered_dataset_reference.item_id, f"filtered-{local_dataset_path.name}"
-            )
-            write_geo_data_frame(filtered_dataset_path, filtered_gdf)
-
-            # Create a new STAC item describing the result
-            filtered_dataset_item = create_derived_stac_item(
-                filtered_dataset_reference, filtered_dataset_title, filtered_dataset_summary, item
-            )
+                # Create a new STAC item describing the result
+                filtered_dataset_item = create_derived_stac_item(
+                    filtered_dataset_reference, filtered_dataset_title, filtered_dataset_summary, item
+                )
 
             # Publish the result to the workspace
             workspace.publish_item(item=filtered_dataset_item, local_assets={selected_asset_key: filtered_dataset_path})
@@ -111,12 +105,6 @@ class FilterTool(ToolBase):
             raise ToolExecutionError("Unable to filter the dataset.") from e
 
         finally:
-            # Cleanup the local asset files
-            if local_assets:
-                for asset_path in local_assets.values():
-                    if asset_path.exists():
-                        asset_path.unlink()
-
             # Remove the filtered dataset file
             if filtered_dataset_path and filtered_dataset_path.exists():
                 filtered_dataset_path.unlink()
