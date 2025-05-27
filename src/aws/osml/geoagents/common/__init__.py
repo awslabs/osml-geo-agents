@@ -4,6 +4,7 @@
 # __init__.py file.
 # flake8: noqa
 
+from .common_parameters import CommonParameters
 from .georeference import Georeference
 from .tool_base import ToolBase, ToolExecutionError
 from .tool_registry import ToolRegistry

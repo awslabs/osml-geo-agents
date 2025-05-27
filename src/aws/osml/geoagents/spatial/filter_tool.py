@@ -4,9 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import shapely
-
-from ..common import Georeference, ToolBase, ToolExecutionError, Workspace
+from ..common import CommonParameters, Georeference, ToolBase, ToolExecutionError, Workspace
 from .spatial_utils import (
     create_derived_stac_item,
     download_georef_from_workspace,
@@ -55,8 +53,8 @@ class FilterTool(ToolBase):
         filtered_dataset_path = None
         try:
             # Parse and validate the required parameters
-            dataset_georef = self._parse_dataset_georef(event)
-            filter_bounds = self._parse_filter_shape(event)
+            dataset_georef = CommonParameters.parse_dataset_georef(event, is_required=True)
+            filter_bounds = CommonParameters.parse_shape_parameter(event, param_name="filter", is_required=True)
 
             # Use workspace to access a geospatial dataset
             item, local_assets = download_georef_from_workspace(dataset_georef, workspace)
@@ -122,42 +120,3 @@ class FilterTool(ToolBase):
             # Remove the filtered dataset file
             if filtered_dataset_path and filtered_dataset_path.exists():
                 filtered_dataset_path.unlink()
-
-    def _parse_filter_shape(self, event: dict[str, Any]) -> shapely.Geometry:
-        """
-        Parse the filter parameter as a WKT string and return a shapely geometry.
-
-        :raises ToolExecutionError: if the filter parameter can not be parsed
-        :param event: the Lambda input event from Bedrock
-        :return: the parsed geometry
-        """
-        try:
-            filter_value, filter_type = self.get_parameter_info(event, "filter")
-            filter_bounds = shapely.from_wkt(filter_value)
-            if not shapely.is_valid(filter_bounds):
-                raise ValueError("Invalid filter shape: not a valid geometry.")
-            return filter_bounds
-        except Exception as e:
-            logger.info(f"Unable to parse filter parameter: {filter_value}", e)
-            raise ToolExecutionError(
-                f"Unable to parse filter parameter: {filter_value}. The parameter must be a valid WKT (Well Known Text) string."
-            )
-
-    def _parse_dataset_georef(self, event: dict[str, Any]) -> Georeference:
-        """
-        Parse the dataset parameter as a georeference.
-
-        :raises ToolExecutionError: if the dataset parameter can not be parsed
-        :param event: the Lambda input event from Bedrock
-        :return: the parsed georeference
-        """
-        try:
-            dataset_value, dataset_type = self.get_parameter_info(event, "dataset")
-            dataset_georef = Georeference(encoded_value=dataset_value)
-        except ValueError as ve:
-            logger.info(f"Unable to parse dataset georef: {dataset_value}", ve)
-            raise ToolExecutionError(
-                "Unable to construct a valid georeference from 'dataset' parameter. "
-                "The parameter must be a valid georeference encoded as a string."
-            )
-        return dataset_georef

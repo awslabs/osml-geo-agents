@@ -5,3 +5,4 @@
 # flake8: noqa
 
 from .filter_tool import FilterTool
+from .summarize_tool import SummarizeTool
