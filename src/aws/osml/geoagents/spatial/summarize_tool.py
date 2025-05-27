@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-from ..common import Georeference, ToolBase, ToolExecutionError, Workspace
+from ..common import CommonParameters, ToolBase, ToolExecutionError, Workspace
 from .spatial_utils import download_georef_from_workspace, read_geo_data_frame
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ class SummarizeTool(ToolBase):
         local_assets = {}
         try:
             # Parse and validate the required parameters
-            dataset_georef = self._parse_dataset_georef(event)
+            dataset_georef = CommonParameters.parse_dataset_georef(event, is_required=True)
 
             # Use workspace to access a geospatial dataset
             item, local_assets = download_georef_from_workspace(dataset_georef, workspace)
@@ -122,22 +122,3 @@ class SummarizeTool(ToolBase):
                 for asset_path in local_assets.values():
                     if asset_path.exists():
                         asset_path.unlink()
-
-    def _parse_dataset_georef(self, event: dict[str, Any]) -> Georeference:
-        """
-        Parse the dataset parameter as a georeference.
-
-        :raises ToolExecutionError: if the dataset parameter can not be parsed
-        :param event: the Lambda input event from Bedrock
-        :return: the parsed georeference
-        """
-        try:
-            dataset_value, dataset_type = self.get_parameter_info(event, "dataset")
-            dataset_georef = Georeference(encoded_value=dataset_value)
-        except ValueError as ve:
-            logger.info(f"Unable to parse dataset georef: {dataset_value}", ve)
-            raise ToolExecutionError(
-                "Unable to construct a valid georeference from 'dataset' parameter. "
-                "The parameter must be a valid georeference encoded as a string."
-            )
-        return dataset_georef

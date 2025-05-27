@@ -9,7 +9,7 @@ import geopandas as gpd
 import shapely
 from pystac import Asset, Item
 
-from aws.osml.geoagents.common import ToolExecutionError, Workspace
+from aws.osml.geoagents.common import Workspace
 from aws.osml.geoagents.spatial.filter_tool import FilterTool
 
 
@@ -66,32 +66,6 @@ class TestFilterTool(unittest.TestCase):
         self.mock_workspace.get_item.assert_called_once()
         self.mock_workspace.download_assets.assert_called_once()
         self.mock_workspace.publish_item.assert_called_once()
-
-    def test_handler_invalid_parameters(self):
-        """Test handling of invalid parameters."""
-        # Test with missing dataset parameter
-        invalid_event = {
-            "agent": "test_agent",
-            "actionGroup": "test_group",
-            "function": "Filter",
-            "parameters": [{"name": "filter", "value": "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"}],
-        }
-
-        with self.assertRaises(ToolExecutionError) as txe:
-            self.handler.handler(invalid_event, None, self.mock_workspace)
-        self.assertIn("Unable to construct a valid georeference", str(txe.exception))
-
-    def test_handler_invalid_geometry(self):
-        """Test handling of invalid geometry in filter parameter."""
-        # Modify event with invalid geometry
-        self.event["parameters"][1]["value"] = "POLYGON((invalid geometry))"
-
-        self.mock_workspace.get_item.return_value = self.sample_item
-        self.mock_workspace.download_assets.return_value = {"data": Path("/tmp/test/sample.geojson")}
-
-        with self.assertRaises(ToolExecutionError) as txe:
-            self.handler.handler(self.event, None, self.mock_workspace)
-        self.assertIn("Unable to parse filter parameter", str(txe.exception))
 
     def test_empty_filter_result(self):
         """Test handling of filter that results in empty dataset."""

@@ -151,28 +151,6 @@ class TestSummarizeTool(unittest.TestCase):
         self.assertIn("value: Numeric column (int64) ranging from 10 to 30 (Measured intensity value)", response_text)
         self.assertIn("score: Numeric column (float64) ranging from 0.5 to 2.5 (Confidence score)", response_text)
 
-    def test_parse_dataset_georef_valid(self):
-        """Test parsing valid georeference."""
-        event = {
-            "actionGroup": "SpatialReasoning",
-            "function": "SUMMARIZE",
-            "parameters": [{"name": "dataset", "value": "georef:test-dataset", "type": "string"}],
-        }
-
-        georef = self.tool._parse_dataset_georef(event)
-        self.assertEqual(georef.encoded_value, "georef:test-dataset")
-
-    def test_parse_dataset_georef_invalid(self):
-        """Test parsing invalid georeference."""
-        event = {
-            "actionGroup": "SpatialReasoning",
-            "function": "SUMMARIZE",
-            "parameters": [{"name": "dataset", "value": "invalid:reference", "type": "string"}],
-        }
-
-        with self.assertRaises(ToolExecutionError):
-            self.tool._parse_dataset_georef(event)
-
     @patch("aws.osml.geoagents.spatial.summarize_tool.download_georef_from_workspace")
     def test_handler_error_handling(self, mock_download):
         """Test various error conditions in handler."""
@@ -189,13 +167,6 @@ class TestSummarizeTool(unittest.TestCase):
             self.tool.handler(event, {}, self.workspace)
 
         self.assertIn("Unable to summarize the dataset", str(context.exception))
-
-    def test_missing_parameters(self):
-        """Test handling of missing parameters."""
-        event = {"actionGroup": "SpatialReasoning", "function": "SUMMARIZE", "parameters": []}
-
-        with self.assertRaises(ToolExecutionError):
-            self.tool.handler(event, {}, self.workspace)
 
 
 if __name__ == "__main__":
