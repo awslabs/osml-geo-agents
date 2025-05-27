@@ -9,10 +9,9 @@ import geopandas as gpd
 from pystac import Item
 from shapely.geometry import Point
 
-from aws.osml.geoagents.common import Georeference, ToolExecutionError, Workspace
+from aws.osml.geoagents.common import Georeference, ToolExecutionError
 from aws.osml.geoagents.spatial.spatial_utils import (
     create_derived_stac_item,
-    download_georef_from_workspace,
     is_parquet_file,
     read_field_descriptions_from_parquet,
     read_geo_data_frame,
@@ -103,36 +102,6 @@ class TestSpatialUtils(unittest.TestCase):
 
                 mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
                 mock_to_parquet.assert_called_once_with(test_path)
-
-    def test_download_georef_from_workspace(self):
-        # Create mock workspace and georeference
-        mock_workspace = Mock(spec=Workspace)
-        mock_georef = Mock(spec=Georeference)
-        mock_georef.asset_tag = "test_asset"
-
-        # Create mock STAC item
-        mock_item = Mock(spec=Item)
-        mock_assets = {"test_asset": Path("test/path")}
-
-        # Configure workspace mock
-        mock_workspace.get_item.return_value = mock_item
-        mock_workspace.download_assets.return_value = mock_assets
-
-        # Test successful download
-        item, assets = download_georef_from_workspace(mock_georef, mock_workspace)
-
-        self.assertEqual(item, mock_item)
-        self.assertEqual(assets, mock_assets)
-        mock_workspace.get_item.assert_called_once_with(mock_georef)
-        mock_workspace.download_assets.assert_called_once_with(mock_item, ["test_asset"])
-
-    def test_download_georef_from_workspace_error(self):
-        mock_workspace = Mock(spec=Workspace)
-        mock_georef = Mock(spec=Georeference)
-        mock_workspace.get_item.side_effect = Exception("Download error")
-
-        with self.assertRaises(ToolExecutionError):
-            download_georef_from_workspace(mock_georef, mock_workspace)
 
     def test_create_derived_stac_item(self):
         # Create mock original item

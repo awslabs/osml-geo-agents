@@ -3,13 +3,12 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple
 
 import geopandas as gpd
 import pyarrow.parquet as pq
 from pystac import Item
 
-from ..common import Georeference, ToolExecutionError, Workspace
+from ..common import Georeference, ToolExecutionError
 
 logger = logging.getLogger(__name__)
 
@@ -82,28 +81,6 @@ def write_geo_data_frame(dataset_path: Path, dataset_gdf: gpd.GeoDataFrame) -> N
     """
     dataset_path.parent.mkdir(parents=True, exist_ok=True)
     dataset_gdf.to_parquet(dataset_path)
-
-
-def download_georef_from_workspace(dataset_georef: Georeference, workspace: Workspace) -> Tuple[Item, dict[str, Path]]:
-    """
-    Download a georeference from the workspace. This will download the STAC item and any assets.
-
-    :param dataset_georef: the georeference for the dataset to download
-    :param workspace: the shared workspace
-    :raises ToolExecutionError: if the dataset can not be downloaded from the workspace
-    :return: a tuple of the STAC item and a map of selected asset keys to local paths
-    """
-    try:
-        item = workspace.get_item(dataset_georef)
-        selected_asset_keys = [dataset_georef.asset_tag] if dataset_georef.asset_tag else None
-        # TODO: Check to see what the estimated size of the dataset is. If it is large we will need
-        #       to distribute processing to a cluster of workers. For now just assume it is small
-        #       enough to process on the local machine.
-        local_assets = workspace.download_assets(item, selected_asset_keys)
-    except Exception as e:
-        logger.info(f"Unable to download dataset: {dataset_georef}", e)
-        raise ToolExecutionError(f"Unable to access the dataset: {dataset_georef} in the shared workspace.")
-    return item, local_assets
 
 
 def validate_dataset_crs(dataset: gpd.GeoDataFrame, georef: Georeference) -> None:
