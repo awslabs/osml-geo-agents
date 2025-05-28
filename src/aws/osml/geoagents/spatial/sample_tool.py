@@ -1,0 +1,101 @@
+#  Copyright 2025 Amazon.com, Inc. or its affiliates.
+
+import logging
+from typing import Any
+
+from ..common import CommonParameters, ToolBase, ToolExecutionError, Workspace
+from ..common.local_assets import LocalAssets
+from .spatial_utils import read_geo_data_frame
+
+logger = logging.getLogger(__name__)
+
+
+class SampleTool(ToolBase):
+    """
+    A tool capable of returning a text representation of features from a geodataset.
+    It allows GenAI agents to respond to queries like:
+    "Show me the first 5 features from dataset georef:dataset-a"
+    """
+
+    def __init__(self):
+        """
+        Constructor for the spatial tool which defines the action group and function name that will be
+        routed to this handler.
+        """
+        super().__init__("SpatialReasoning", "SAMPLE")
+
+    def handler(self, event: dict[str, Any], context: dict[str, Any], workspace: Workspace) -> dict[str, Any]:
+        """
+        This is the implementation of the geospatial sample event handler. It takes a geospatial reference and
+        a number of features as parameters, loads the dataset for the reference, and then returns a text
+        representation of the requested number of features.
+
+        :param event: the Lambda input event from Bedrock
+        :param context: the Lambda context object for this handler
+        :param workspace: the user workspace for storing large geospatial assets
+        :raises ToolExecutionError: the tool was unable to process the event
+        :return: the Lambda response structure for Bedrock
+        """
+
+        logger.debug(
+            f"{__name__} Received Event: ActionGroup: {event['actionGroup']}, "
+            f"Function: {event['function']} with parameters: {event.get('parameters', [])}"
+        )
+
+        try:
+            # Parse and validate the required parameters
+            dataset_georef = CommonParameters.parse_dataset_georef(event, is_required=True)
+            # Get number of features parameter, defaulting to 10 if not provided
+            num_features = CommonParameters.parse_numeric_parameter(
+                event, "number_of_features", is_required=False, must_be_positive=True
+            )
+            if num_features is None:
+                num_features = 10
+
+            # Use context manager to handle local assets
+            if dataset_georef is None:
+                raise ToolExecutionError(
+                    "Missing required parameter: 'dataset'. "
+                    "The parameter must be a valid georeference encoded as a string."
+                )
+
+            with LocalAssets(dataset_georef, workspace) as (item, local_asset_paths):
+                # Select the assets to process and load them into memory
+                selected_asset_key = next(iter(local_asset_paths))
+                local_dataset_path = local_asset_paths[selected_asset_key]
+                gdf = read_geo_data_frame(local_dataset_path)
+
+                # Get the requested number of features (cast to int for pandas head())
+                sampled_gdf = gdf.head(int(num_features))
+
+                # Generate a text representation of the features
+                total_features = len(gdf)
+                sample_size = len(sampled_gdf)
+
+                # Create header with dataset info
+                text_result = [
+                    f"Sample of {sample_size} feature{'s' if sample_size != 1 else ''} "
+                    f"from dataset {dataset_georef} (total features: {total_features})\n"
+                ]
+
+                # Add column names
+                columns = sampled_gdf.columns.tolist()
+                text_result.append("Columns: " + ", ".join(columns) + "\n")
+
+                # Add feature data
+                text_result.append("\nFeatures:")
+                for idx, row in sampled_gdf.iterrows():
+                    text_result.append(f"\nFeature {idx}:")
+                    for col in columns:
+                        text_result.append(f"  {col}: {row[col]}")
+
+            return self.create_action_response(event, "\n".join(text_result), is_error=False)
+
+        except ToolExecutionError as txe:
+            # ToolExecutionErrors contain informative messages that can be relayed back to the
+            # orchestration agent to help the user understand what went wrong.
+            raise txe
+        except Exception as e:
+            logger.error("A generic / unexpected exception has been thrown by the sample processing")
+            logger.exception(e, exc_info=True)
+            raise ToolExecutionError("Unable to sample the dataset.") from e

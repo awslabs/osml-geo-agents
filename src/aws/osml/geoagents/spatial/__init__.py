@@ -6,4 +6,5 @@
 
 from .correlation_tool import CorrelationTool
 from .filter_tool import FilterTool
+from .sample_tool import SampleTool
 from .summarize_tool import SummarizeTool

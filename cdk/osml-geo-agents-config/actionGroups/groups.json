@@ -30,6 +30,21 @@
             }
           }
         },{
+          "name": "SAMPLE",
+          "description": "Return a few features selected at random from a dataset.",
+          "parameters": {
+            "dataset": {
+              "type": "string",
+              "description": "A georeference for the dataset.",
+              "required": true
+            },
+            "number_of_features": {
+              "type": "number",
+              "description": "The number of features to return, defaults to 10.",
+              "required": false
+            }
+          }
+        },{
           "name": "CORRELATE",
           "description": "Compute a new dataset by correlating features from two datasets.",
           "parameters": {
