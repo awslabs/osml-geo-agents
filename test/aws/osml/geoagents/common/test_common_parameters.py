@@ -399,6 +399,103 @@ class TestCommonParameters(unittest.TestCase):
         result = CommonParameters.parse_string_parameter(event, "text", is_required=False)
         self.assertIsNone(result)
 
+    def test_parse_numeric_parameter_valid_integer(self):
+        """Test parsing valid integer."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "number", "value": "42", "type": "string"}],
+        }
+
+        number = CommonParameters.parse_numeric_parameter(event, "number")
+        self.assertEqual(number, 42.0)
+
+    def test_parse_numeric_parameter_valid_float(self):
+        """Test parsing valid float."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "number", "value": "42.5", "type": "string"}],
+        }
+
+        number = CommonParameters.parse_numeric_parameter(event, "number")
+        self.assertEqual(number, 42.5)
+
+    def test_parse_numeric_parameter_invalid_string(self):
+        """Test parsing invalid string raises error regardless of is_required."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "number", "value": "not a number", "type": "string"}],
+        }
+
+        # Should raise error even when parameter is optional
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_numeric_parameter(event, "number", is_required=False)
+        self.assertIn("Unable to parse", str(context.exception))
+
+        # Should raise error when parameter is required
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_numeric_parameter(event, "number", is_required=True)
+        self.assertIn("Unable to parse", str(context.exception))
+
+    def test_parse_numeric_parameter_negative_when_positive_required(self):
+        """Test parsing negative number when must_be_positive is True raises error."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "number", "value": "-10", "type": "string"}],
+        }
+
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_numeric_parameter(event, "number", must_be_positive=True)
+        self.assertIn("must be a valid positive number", str(context.exception))
+
+    def test_parse_numeric_parameter_negative_when_positive_not_required(self):
+        """Test parsing negative number when must_be_positive is False succeeds."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "number", "value": "-10", "type": "string"}],
+        }
+
+        number = CommonParameters.parse_numeric_parameter(event, "number", must_be_positive=False)
+        self.assertEqual(number, -10.0)
+
+    def test_parse_numeric_parameter_custom_param_name(self):
+        """Test parsing number with custom parameter name."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "custom_number", "value": "50", "type": "string"}],
+        }
+
+        number = CommonParameters.parse_numeric_parameter(event, "custom_number")
+        self.assertEqual(number, 50.0)
+
+    def test_parse_numeric_parameter_missing_required(self):
+        """Test handling of missing required parameter."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [],
+        }
+
+        with self.assertRaises(ToolExecutionError) as context:
+            CommonParameters.parse_numeric_parameter(event, "number", is_required=True)
+        self.assertIn("Missing required parameter", str(context.exception))
+
+    def test_parse_numeric_parameter_missing_optional(self):
+        """Test handling of missing optional parameter."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [],
+        }
+
+        result = CommonParameters.parse_numeric_parameter(event, "number", is_required=False)
+        self.assertIsNone(result)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -162,6 +162,43 @@ class CommonParameters:
             )
 
     @staticmethod
+    def parse_numeric_parameter(
+        event: dict[str, Any], param_name: str, is_required: bool = True, must_be_positive: bool = False
+    ) -> Optional[float]:
+        """
+        Parse a numeric parameter as a number (integer or float).
+
+        :param event: the Lambda input event from Bedrock
+        :param param_name: name of the parameter to parse
+        :param is_required: whether the parameter is required (defaults to True)
+        :param must_be_positive: whether the number must be positive (defaults to False)
+        :raises ToolExecutionError: if a required parameter is missing or if a provided value cannot be parsed
+        :return: the parsed number (never None if is_required=True, as it would raise ToolExecutionError instead)
+        """
+        numeric_value, _ = ToolBase.get_parameter_info(event, param_name)
+
+        # Handle missing parameter
+        if numeric_value is None:
+            if is_required:
+                raise ToolExecutionError(
+                    f"Missing required parameter: '{param_name}'. " "The parameter must be provided and be a valid number."
+                )
+            return None
+
+        # If value is provided, always validate it regardless of is_required
+        try:
+            number = float(numeric_value)
+            if must_be_positive and number <= 0:
+                raise ValueError("Number must be positive")
+            return number
+        except ValueError as ve:
+            logger.info(f"Unable to parse numeric parameter: {numeric_value}", ve)
+            raise ToolExecutionError(
+                f"Unable to parse '{param_name}' parameter: {numeric_value}. "
+                f"The parameter must be a valid{' positive ' if must_be_positive else ' '}number."
+            )
+
+    @staticmethod
     def parse_enum_parameter(
         event: dict[str, Any], enum_class: type[Enum], param_name: str, is_required: bool = True
     ) -> Optional[Enum]:
