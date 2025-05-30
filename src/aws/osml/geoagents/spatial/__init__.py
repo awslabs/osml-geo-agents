@@ -4,6 +4,7 @@
 # __init__.py file.
 # flake8: noqa
 
+from .cluster_tool import ClusterTool
 from .correlation_tool import CorrelationTool
 from .filter_tool import FilterTool
 from .sample_tool import SampleTool
