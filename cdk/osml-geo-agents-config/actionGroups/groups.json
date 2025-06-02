@@ -1,5 +1,46 @@
 [
   {
+    "actionGroupName": "WorkspaceActions",
+    "description": "Actions that manage datasets in the user's workspace.",
+    "functionSchema": {
+      "functions": [
+        {
+          "name": "LOAD",
+          "description": "Load a dataset from S3 into the workspace.",
+          "parameters": {
+            "s3_url": {
+              "type": "string",
+              "description": "The S3 URL of the dataset to load. Must start with 's3://'.",
+              "required": true
+            },
+            "dataset_name": {
+              "type": "string",
+              "description": "The name to give the dataset. If not provided, the filename from the S3 URL will be used.",
+              "required": false
+            }
+          }
+        },
+        {
+          "name": "LIST",
+          "description": "List all datasets currently available in the workspace.",
+          "parameters": {}
+        },
+        {
+          "name": "UNLOAD",
+          "description": "Remove a dataset from the workspace.",
+          "parameters": {
+            "dataset": {
+              "type": "string",
+              "description": "A georeference for the dataset to remove.",
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "skipResourceInUseCheckOnDelete": true
+  },
+  {
     "actionGroupName": "SpatialReasoning",
     "description": "Actions that perform geospatial reasoning operations on datasets.",
     "functionSchema": {
