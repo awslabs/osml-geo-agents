@@ -118,7 +118,9 @@ class CorrelationTool(ToolBase):
                 correlation_dataset_summary += f"A buffer of {distance} units was applied to the first dataset. "
 
             # Write the derived dataset to the local workspace cache
-            correlation_dataset_reference = Georeference.new_random(asset_tag=selected_asset_key1)
+            correlation_dataset_reference = Georeference.new_from_timestamp(
+                asset_tag=selected_asset_key1, prefix=self.function_name
+            )
             correlation_dataset_path = Path(
                 workspace.session_local_path,
                 correlation_dataset_reference.item_id,

@@ -90,7 +90,7 @@ class ClusterTool(ToolBase):
                     clusters = clusters[: int(max_clusters)]
 
                 # Create a single base georeference for all clusters
-                base_georef = Georeference.new_random()
+                base_georef = Georeference.new_from_timestamp(prefix=self.function_name)
 
                 # Prepare assets dictionary and cluster information
                 assets = {}
