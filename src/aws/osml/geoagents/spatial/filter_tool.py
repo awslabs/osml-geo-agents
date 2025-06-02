@@ -73,7 +73,9 @@ class FilterTool(ToolBase):
                 )
 
                 # Write the derived dataset to the local workspace cache
-                filtered_dataset_reference = Georeference.new_random(asset_tag=selected_asset_key)
+                filtered_dataset_reference = Georeference.new_from_timestamp(
+                    asset_tag=selected_asset_key, prefix=self.function_name
+                )
                 filtered_dataset_path = Path(
                     workspace.session_local_path, filtered_dataset_reference.item_id, f"filtered-{local_dataset_path.name}"
                 )

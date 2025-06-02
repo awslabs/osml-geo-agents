@@ -1,5 +1,6 @@
 #  Copyright 2025 Amazon.com, Inc. or its affiliates.
 
+import time
 import unittest
 
 from aws.osml.geoagents.common.georeference import GEOREF_PROTOCOL, Georeference
@@ -73,6 +74,97 @@ class TestGeoreference(unittest.TestCase):
         georef_str = f"{GEOREF_PROTOCOL}ABC123#rgb"
         georef = Georeference(georef_str)
         self.assertEqual(str(georef), georef_str)
+
+    def test_new_from_timestamp(self):
+        """
+        Test creating a georeference from a timestamp.
+
+        :raises: AssertionError if the georeference is not created correctly
+        """
+        # Test without asset tag or prefix
+        georef = Georeference.new_from_timestamp()
+        self.assertTrue(str(georef).startswith(GEOREF_PROTOCOL))
+        self.assertIsNone(georef.asset_tag)
+
+        # Test with asset tag, no prefix
+        georef = Georeference.new_from_timestamp(asset_tag="rgb")
+        self.assertTrue(str(georef).startswith(GEOREF_PROTOCOL))
+        self.assertEqual(georef.asset_tag, "rgb")
+        self.assertTrue(str(georef).endswith("#rgb"))
+
+        # Test with prefix, no asset tag
+        georef = Georeference.new_from_timestamp(prefix="test")
+        self.assertTrue(str(georef).startswith(GEOREF_PROTOCOL))
+        self.assertTrue("test-" in georef.item_id)
+        self.assertIsNone(georef.asset_tag)
+
+        # Test with both prefix and asset tag
+        georef = Georeference.new_from_timestamp(asset_tag="rgb", prefix="test")
+        self.assertTrue(str(georef).startswith(GEOREF_PROTOCOL))
+        self.assertTrue("test-" in georef.item_id)
+        self.assertEqual(georef.asset_tag, "rgb")
+        self.assertTrue(str(georef).endswith("#rgb"))
+
+    def test_timestamp_ordering(self):
+        """
+        Test that timestamp-based georeferences increase over time.
+
+        :raises: AssertionError if the ordering is incorrect
+        """
+        # Create first georeference
+        georef1 = Georeference.new_from_timestamp()
+
+        # Wait a small amount of time to ensure different timestamps
+        time.sleep(0.01)
+
+        # Create second georeference
+        georef2 = Georeference.new_from_timestamp()
+
+        # Convert back to timestamps for comparison
+        # Extract the item_id (base36 string)
+        id1 = georef1.item_id
+        id2 = georef2.item_id
+
+        # Convert base36 to integers
+        timestamp1 = int(id1, 36)
+        timestamp2 = int(id2, 36)
+
+        # The second timestamp should be greater than the first
+        self.assertGreater(timestamp2, timestamp1)
+
+    def test_timestamp_ordering_with_prefix(self):
+        """
+        Test that timestamp-based georeferences with prefixes increase over time.
+
+        :raises: AssertionError if the ordering is incorrect
+        """
+        # Create first georeference with prefix
+        georef1 = Georeference.new_from_timestamp(prefix="test")
+
+        # Wait a small amount of time to ensure different timestamps
+        time.sleep(0.01)
+
+        # Create second georeference with same prefix
+        georef2 = Georeference.new_from_timestamp(prefix="test")
+
+        # Extract the item_id (base36 string with prefix)
+        id1 = georef1.item_id
+        id2 = georef2.item_id
+
+        # Verify both have the prefix
+        self.assertTrue(id1.startswith("test-"))
+        self.assertTrue(id2.startswith("test-"))
+
+        # Extract the timestamp part (after the prefix)
+        timestamp_str1 = id1.split("-", 1)[1]
+        timestamp_str2 = id2.split("-", 1)[1]
+
+        # Convert base36 to integers
+        timestamp1 = int(timestamp_str1, 36)
+        timestamp2 = int(timestamp_str2, 36)
+
+        # The second timestamp should be greater than the first
+        self.assertGreater(timestamp2, timestamp1)
 
 
 if __name__ == "__main__":
