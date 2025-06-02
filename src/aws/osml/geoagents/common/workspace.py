@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from urllib.parse import urlparse
 
 import boto3
@@ -134,6 +134,65 @@ class Workspace:
             asset_paths[asset_key] = local_path
 
         return asset_paths
+
+    def list_items(self) -> List[Georeference]:
+        """
+        List all items in the workspace for the current user.
+
+        :return: a list of Georeference objects for each item
+        """
+        # List objects in the S3 bucket with the prefix for this user
+        prefix = f"{self.user_id}/"
+
+        try:
+            # Use S3 list_objects_v2 to get all objects with the user's prefix
+            paginator = self.s3_client.get_paginator("list_objects_v2")
+            item_ids: Set[str] = set()
+
+            # Iterate through pages of results
+            for page in paginator.paginate(Bucket=self.workspace_bucket, Prefix=prefix, Delimiter="/"):
+                if "CommonPrefixes" in page:
+                    for common_prefix in page["CommonPrefixes"]:
+                        # Extract the item ID from the prefix (format: user_id/item_id/)
+                        prefix_parts = common_prefix["Prefix"].split("/")
+                        if len(prefix_parts) >= 2:
+                            item_ids.add(prefix_parts[1])
+
+            # Create Georeference objects for each item ID
+            return [Georeference.from_parts(item_id=item_id) for item_id in item_ids]
+        except Exception as e:
+            logger.warning(f"Error listing items: {str(e)}")
+            raise Exception(f"Failed to list items: {str(e)}")
+
+    def delete_item(self, georef: Georeference) -> None:
+        """
+        Delete an item and all its assets from the workspace.
+
+        :param georef: the georeference of the item to delete
+        :raises Exception: if the item cannot be deleted
+        """
+        # Delete the item and its assets from S3
+        prefix = f"{self.user_id}/{georef.item_id}/"
+
+        try:
+            # List all objects with this prefix
+            paginator = self.s3_client.get_paginator("list_objects_v2")
+            objects_to_delete = []
+
+            for page in paginator.paginate(Bucket=self.workspace_bucket, Prefix=prefix):
+                if "Contents" in page:
+                    for obj in page["Contents"]:
+                        objects_to_delete.append({"Key": obj["Key"]})
+
+            if objects_to_delete:
+                # Delete the objects
+                self.s3_client.delete_objects(Bucket=self.workspace_bucket, Delete={"Objects": objects_to_delete})
+                logger.info(f"Deleted {len(objects_to_delete)} objects for item {georef}")
+            else:
+                logger.warning(f"No objects found for item {georef}")
+        except Exception as e:
+            logger.warning(f"Error deleting item {georef}: {str(e)}")
+            raise Exception(f"Failed to delete item {georef}: {str(e)}")
 
     def publish_item(self, item: Item, local_assets: Optional[Dict[str, Path]]) -> Georeference:
         """

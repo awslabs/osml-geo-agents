@@ -139,3 +139,97 @@ class TestWorkspace(unittest.TestCase):
         response = self.s3.get_object(Bucket=self.bucket_name, Key=item_key)
         uploaded_item = Item.from_dict(json.loads(response["Body"].read().decode("utf-8")))
         assert uploaded_item.id == sample_item.id
+
+    def test_list_items(self):
+        """Test listing all items in the workspace"""
+        # Create multiple sample items
+        item_ids = ["item001", "item002", "item003"]
+
+        for item_id in item_ids:
+            # Create a sample item
+            sample_item = Item(
+                id=item_id,
+                geometry={"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]},
+                bbox=[0, 0, 1, 1],
+                datetime=datetime.fromisoformat("2025-04-23T14:05:23Z"),
+                properties={},
+            )
+
+            # Upload the item to S3
+            item_key = f"{self.user_id}/{item_id}/item.json"
+            self.s3.put_object(Bucket=self.bucket_name, Key=item_key, Body=json.dumps(sample_item.to_dict()))
+
+            # Add a test asset to create the directory structure
+            asset_key = f"{self.user_id}/{item_id}/test-asset/test-asset.txt"
+            self.s3.put_object(Bucket=self.bucket_name, Key=asset_key, Body=b"test content")
+
+        # Test list_items
+        items = self.workspace.list_items()
+
+        # Verify the results
+        self.assertEqual(len(items), len(item_ids))
+
+        # Convert the returned Georeference objects to item_ids for easier comparison
+        returned_item_ids = [item.item_id for item in items]
+
+        # Verify all expected items are in the returned list
+        for item_id in item_ids:
+            self.assertIn(item_id, returned_item_ids)
+
+    def test_list_items_empty(self):
+        """Test listing items when the workspace is empty"""
+        # No items in the workspace
+
+        # Test list_items
+        items = self.workspace.list_items()
+
+        # Verify the results
+        self.assertEqual(len(items), 0)
+
+    def test_delete_item(self):
+        """Test deleting an item and its assets from the workspace"""
+        # Create a sample item with multiple assets
+        item_id = "delete-test-item"
+        sample_item = Item(
+            id=item_id,
+            geometry={"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]},
+            bbox=[0, 0, 1, 1],
+            datetime=datetime.fromisoformat("2025-04-23T14:05:23Z"),
+            properties={},
+        )
+
+        # Upload the item to S3
+        item_key = f"{self.user_id}/{item_id}/item.json"
+        self.s3.put_object(Bucket=self.bucket_name, Key=item_key, Body=json.dumps(sample_item.to_dict()))
+
+        # Add multiple test assets
+        asset_keys = [
+            f"{self.user_id}/{item_id}/asset1/asset1.txt",
+            f"{self.user_id}/{item_id}/asset2/asset2.txt",
+            f"{self.user_id}/{item_id}/asset3/asset3.txt",
+        ]
+
+        for asset_key in asset_keys:
+            self.s3.put_object(Bucket=self.bucket_name, Key=asset_key, Body=b"test content")
+
+        # Verify the item exists before deletion
+        response = self.s3.list_objects_v2(Bucket=self.bucket_name, Prefix=f"{self.user_id}/{item_id}/")
+        self.assertIn("Contents", response)
+        self.assertGreaterEqual(len(response["Contents"]), 4)  # item.json + 3 assets
+
+        # Test delete_item
+        georef = Georeference.from_parts(item_id=item_id)
+        self.workspace.delete_item(georef)
+
+        # Verify the item and its assets are deleted
+        response = self.s3.list_objects_v2(Bucket=self.bucket_name, Prefix=f"{self.user_id}/{item_id}/")
+        self.assertNotIn("Contents", response)
+
+    def test_delete_item_not_found(self):
+        """Test deleting a non-existent item"""
+        # Create a georeference for a non-existent item
+        georef = Georeference.from_parts(item_id="non-existent-item")
+
+        # Test delete_item with non-existent item
+        # This should not raise an exception, but log a warning
+        self.workspace.delete_item(georef)
