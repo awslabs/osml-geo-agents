@@ -60,6 +60,27 @@
               "required": false
             }
           }
+        },
+        {
+          "name": "OSML-GEO-TRANSLATE",
+          "description": "Translate a geometry by a specified distance and heading.",
+          "parameters": {
+            "geometry": {
+              "type": "string",
+              "description": "A shape literal in WKT format (ex. POLYGON, POINT, or LINESTRING).",
+              "required": true
+            },
+            "distance": {
+              "type": "string",
+              "description": "A distance in meters to translate the shape.",
+              "required": true
+            },
+            "heading": {
+              "type": "string",
+              "description": "Heading in degrees (0 = North, 90 = East, etc.).",
+              "required": true
+            }
+          }
         }
       ]
     }

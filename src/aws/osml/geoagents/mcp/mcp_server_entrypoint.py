@@ -15,6 +15,7 @@ from ..spatial.correlation_operation import CorrelationTypes, correlation_operat
 from ..spatial.filter_operation import filter_operation
 from ..spatial.sample_operation import sample_operation
 from ..spatial.summarize_operation import summarize_operation
+from ..spatial.translate_operation import translate_operation
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -206,7 +207,18 @@ def translate_geometry(
     Translate a geometry by a specified distance and heading.
     """
     logger.info(f"Translating geometry {distance}m at heading {heading}°")
-    return "This tool needs to be implemented to translate the geometry."
+
+    try:
+        # Convert WKT string to Shapely geometry
+        shapely_geometry = from_wkt(geometry)
+
+        # Call the translate operation
+        result = translate_operation(shapely_geometry, distance, heading)
+
+        return result
+    except Exception as e:
+        logger.error(f"Error in translate_geometry: {e}")
+        return f"Error translating geometry: {str(e)}"
 
 
 def configure_logging(level: int = logging.DEBUG) -> None:
