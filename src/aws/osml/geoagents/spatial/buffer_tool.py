@@ -3,10 +3,9 @@
 import logging
 from typing import Any, cast
 
-import shapely
-
 from ..common import CommonParameters, ToolBase, ToolExecutionError, Workspace
-from .spatial_transforms import GeometryType, buffer_geometry
+from .spatial_transforms import GeometryType, buffer_geometry, calculate_minimum_precision
+from .spatial_utils import create_length_limited_wkt
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +52,22 @@ class BufferTool(ToolBase):
             # Buffer the geometry - cast to GeometryType to satisfy type checker
             buffered_geometry = buffer_geometry(cast(GeometryType, geometry), distance)
 
-            # Convert to WKT with specified precision
-            rounding_precision = 6
-            wkt_result = shapely.to_wkt(buffered_geometry, rounding_precision=rounding_precision)
+            # Calculate minimum precision based on buffer distance and latitude
+            # Extract latitude from the geometry's centroid
+            try:
+                # Cast to GeometryType to ensure we can access centroid
+                geom = cast(GeometryType, geometry)
+                centroid = geom.centroid
+                latitude = centroid.y
+            except (AttributeError, Exception):
+                # Default to equator (0 latitude) if we can't get the centroid
+                logger.debug("Could not determine latitude from geometry, using default (equator)")
+                latitude = 0.0
+
+            minimum_precision = calculate_minimum_precision(distance, latitude)
+
+            # Convert to WKT with length limitation
+            wkt_result = create_length_limited_wkt(buffered_geometry, minimum_precision=minimum_precision)
 
             # Generate response
             text_result = f"The input geometry has been buffered by {distance} meters. Result: {wkt_result}"

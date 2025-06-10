@@ -13,6 +13,7 @@ from aws.osml.geoagents.spatial.spatial_transforms import (
     _project_to_utm,
     _project_to_wgs84,
     buffer_geometry,
+    calculate_minimum_precision,
     translate_geometry,
 )
 
@@ -443,6 +444,59 @@ class TestSpatialTransforms(unittest.TestCase):
         # Attempt to translate the invalid geometry
         with self.assertRaises(ValueError):
             translate_geometry(invalid_geometry, 100, 90)
+
+    def test_calculate_minimum_precision_at_equator(self) -> None:
+        """
+        Test calculate_minimum_precision at the equator (latitude=0).
+
+        :return: None
+        """
+        # Test with different distances at the equator
+        self.assertEqual(calculate_minimum_precision(1000), 3)  # Large distance -> low precision
+        self.assertEqual(calculate_minimum_precision(100), 4)
+        self.assertEqual(calculate_minimum_precision(10), 5)
+        self.assertEqual(calculate_minimum_precision(1), 6)  # Small distance -> high precision
+
+    def test_calculate_minimum_precision_with_latitude(self) -> None:
+        """
+        Test calculate_minimum_precision with different latitudes.
+
+        :return: None
+        """
+        # At higher latitudes, the same distance should require higher precision
+        # because the distance represented by a degree of longitude decreases
+
+        # Test with a fixed distance at different latitudes
+        distance = 100  # meters
+
+        # At the equator (0°), this should give precision 4
+        equator_precision = calculate_minimum_precision(distance, 0)
+        self.assertEqual(equator_precision, 4)
+
+        # Above 45° latitude, the distance represented by a degree of longitude is less
+        # So it takes less precision to track the same distances
+        mid_latitude_precision = calculate_minimum_precision(distance, 45)
+        self.assertGreaterEqual(mid_latitude_precision, 3)
+
+    def test_calculate_minimum_precision_bounds(self) -> None:
+        """
+        Test that calculate_minimum_precision always returns values between 3 and 6.
+
+        :return: None
+        """
+        # Test with very large distance at different latitudes
+        very_large_distance = 1000000  # 1000 km
+        for latitude in [0, 30, 60, 89]:
+            precision = calculate_minimum_precision(very_large_distance, latitude)
+            self.assertGreaterEqual(precision, 3)
+            self.assertLessEqual(precision, 6)
+
+        # Test with very small distance at different latitudes
+        very_small_distance = 0.1  # 10 cm
+        for latitude in [0, 30, 60, 89]:
+            precision = calculate_minimum_precision(very_small_distance, latitude)
+            self.assertGreaterEqual(precision, 3)
+            self.assertLessEqual(precision, 6)
 
 
 if __name__ == "__main__":

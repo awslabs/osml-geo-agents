@@ -1,9 +1,7 @@
 #  Copyright 2025 Amazon.com, Inc. or its affiliates.
 
 import unittest
-from unittest.mock import Mock, patch
-
-import shapely
+from unittest.mock import Mock
 
 from aws.osml.geoagents.common import ToolExecutionError, Workspace
 from aws.osml.geoagents.spatial.buffer_tool import BufferTool
@@ -22,28 +20,20 @@ class TestBufferTool(unittest.TestCase):
             "function": "BUFFER",
             "parameters": [
                 {"name": "geometry", "value": "POINT(0 0)", "type": "string"},
-                {"name": "distance", "value": "100", "type": "string"},
+                {"name": "distance", "value": "1000", "type": "string"},
             ],
         }
 
-    @patch("aws.osml.geoagents.spatial.buffer_tool.buffer_geometry")
-    def test_handler_successful_buffer(self, mock_buffer_geometry):
+    def test_handler_successful_buffer(self):
         """Test successful buffering of a geometry."""
-        # Setup mock buffer_geometry
-        mock_buffer_result = shapely.geometry.Point(0, 0).buffer(100)
-        mock_buffer_geometry.return_value = mock_buffer_result
-
-        # Call the handler
+        # Call the handler with the actual event data
         result = self.handler.handler(self.event, None, self.mock_workspace)
 
-        # Verify the result
-        self.assertIn("has been buffered by 100", str(result))
-        self.assertIn("POLYGON", str(result))
+        # Verify the result contains expected text
+        self.assertIn("has been buffered by 1000", str(result))
 
-        # Verify buffer_geometry was called with correct parameters
-        mock_buffer_geometry.assert_called_once()
-        args, _ = mock_buffer_geometry.call_args
-        self.assertEqual(args[1], 100.0)  # Check distance parameter
+        # Verify the result contains a valid polygon WKT
+        self.assertIn("POLYGON ((", str(result))
 
     def test_missing_required_parameters(self):
         """Test error handling when required parameters are missing."""

@@ -6,9 +6,11 @@ from pathlib import Path
 
 import geopandas as gpd
 import pyarrow.parquet as pq
+import shapely
 from pystac import Item
 
 from ..common import Georeference, ToolExecutionError
+from .spatial_transforms import GeometryType
 
 logger = logging.getLogger(__name__)
 
@@ -139,3 +141,42 @@ def create_derived_stac_item(
     )
     filtered_dataset_item.add_derived_from(original_item)
     return filtered_dataset_item
+
+
+def create_length_limited_wkt(shape: GeometryType, max_length: int = 500, minimum_precision: int = 3) -> str:
+    """
+    Create a WKT string representation of a shape that is shorter than the specified maximum length.
+
+    This function progressively applies simplification and reduces coordinate precision
+    until the WKT string is under the specified maximum length. This is necessary because some agent
+    orchestration frameworks (e.g. Bedrock Agents) currently have limits on the length of parameters.
+    We expect the WKT results from these spatial operations to be chained together. Providing a
+    way to consistently limit the lengh of a result will help the orchestration engine return results
+    that can easily be passed to other tools.
+
+    :param shape: The geometry to convert to WKT
+    :param max_length: Maximum length of the WKT string (default: 500 characters)
+    :param minimum_precision: Minimum precision to use for coordinate rounding (default: 3)
+    :return: WKT string representation under the maximum length
+    :raises ValueError: If unable to create a WKT string under the maximum length
+    """
+
+    # Try different precision levels first
+    for precision in range(6, minimum_precision - 1, -1):
+        wkt = shapely.to_wkt(shape, rounding_precision=precision)
+        if len(wkt) <= max_length:
+            return wkt
+
+    # If reducing precision isn't enough, try simplification
+    # with progressively increasing tolerance. These values are in decimal degrees
+    for tolerance in [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5]:
+        simplified = shape.simplify(tolerance)
+
+        # Try different precision levels with the simplified geometry
+        for precision in range(6, minimum_precision - 1, -1):
+            wkt = shapely.to_wkt(simplified, rounding_precision=precision)
+            if len(wkt) <= max_length:
+                return wkt
+
+    # If we still can't get under the limit, raise an error
+    raise ValueError(f"Unable to create WKT string under {max_length} characters")

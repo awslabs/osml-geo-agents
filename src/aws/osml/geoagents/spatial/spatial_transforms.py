@@ -16,6 +16,34 @@ logger = logging.getLogger(__name__)
 GeometryType = Union[Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon, GeometryCollection]
 
 
+def calculate_minimum_precision(distance_meters: float, latitude: float = 0.0) -> int:
+    """
+    Calculate the minimum precision to use for WKT coordinates based on buffer distance and latitude.
+
+    The precision is adjusted based on the latitude, as the distance represented by a degree of longitude
+    varies with latitude (decreasing as you move away from the equator).
+
+    :param distance_meters: Distance in meters
+    :param latitude: Latitude in degrees (default: 0.0, the equator)
+    :return: Minimum precision to use (between 3 and 6)
+    """
+    # Calculate meters per degree of longitude at the given latitude
+    # Formula: cos(latitude_radians) * (2 * π * Earth_radius) / 360
+    earth_radius_meters = 6371000  # Average Earth radius in meters
+    latitude_radians = math.radians(latitude)
+    meters_per_degree = math.cos(latitude_radians) * (2 * math.pi * earth_radius_meters) / 360
+
+    # Calculate the precision needed to represent 1/10th of the distance
+    # This ensures the precision is one order of magnitude less than the distance provided
+    # Formula: -log10(distance_meters / (10 * meters_per_degree))
+    precision = int(-math.log10(distance_meters / (10 * meters_per_degree)))
+
+    # Clamp to the range [3, 6]
+    precision = max(3, min(6, precision))
+
+    return precision
+
+
 def _project_to_utm(
     geometry: GeometryType, utm_crs: Optional[Union[str, pyproj.CRS]] = None
 ) -> Tuple[GeometryType, pyproj.CRS]:
@@ -98,7 +126,7 @@ def _calculate_xy_offset(distance_meters: float, heading_degrees: float) -> Tupl
     return x_offset, y_offset
 
 
-def buffer_geometry(geometry: GeometryType, buffer_distance_meters: float) -> GeometryType:
+def buffer_geometry(geometry: GeometryType, buffer_distance_meters: float, quad_segs: int = 3) -> GeometryType:
     """
     Buffer a geometry by a specified distance in meters.
 
@@ -108,6 +136,7 @@ def buffer_geometry(geometry: GeometryType, buffer_distance_meters: float) -> Ge
 
     :param geometry: The geometry to buffer (in WGS84)
     :param buffer_distance_meters: Buffer distance in meters
+    :param quad_segs: Specifies the number of linear segments in a quarter circle in the approximation of circular arcs.
     :return: The buffered geometry (in WGS84)
     :raises ValueError: If the geometry cannot be buffered
     """
@@ -116,7 +145,7 @@ def buffer_geometry(geometry: GeometryType, buffer_distance_meters: float) -> Ge
         utm_geometry, utm_crs = _project_to_utm(geometry)
 
         # Apply buffer
-        buffered_geometry = utm_geometry.buffer(buffer_distance_meters)
+        buffered_geometry = utm_geometry.buffer(buffer_distance_meters, quad_segs=quad_segs)
 
         # Project back to WGS84
         wgs84_buffered_geometry = _project_to_wgs84(buffered_geometry, utm_crs)
