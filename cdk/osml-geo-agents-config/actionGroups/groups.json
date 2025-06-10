@@ -41,6 +41,30 @@
     "skipResourceInUseCheckOnDelete": true
   },
   {
+    "actionGroupName": "GeoGeometryOperations",
+    "description": "Actions that perform geometric computations on geographic shapes.",
+    "functionSchema": {
+      "functions": [
+        {
+          "name": "OSML-GEO-BUFFER",
+          "description": "Buffer (expand or shrink) a geometry by a given distance.",
+          "parameters": {
+            "geometry": {
+              "type": "string",
+              "description": "A shape literal in WKT format (ex. POLYGON, POINT, or LINESTRING).",
+              "required": true
+            },
+            "distance": {
+              "type": "string",
+              "description": "A distance in meters to expand the shape. If negative the shape will shrink by that amount.",
+              "required": false
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
     "actionGroupName": "SpatialReasoning",
     "description": "Actions that perform geospatial reasoning operations on datasets.",
     "functionSchema": {

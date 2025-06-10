@@ -21,8 +21,9 @@ def create_tool_router() -> ToolRouter:
     tool_registry.register_tool(LoadTool())
     tool_registry.register_tool(UnloadTool())
 
-    from .spatial import ClusterTool, CorrelationTool, FilterTool, SampleTool, SummarizeTool
+    from .spatial import BufferTool, ClusterTool, CorrelationTool, FilterTool, SampleTool, SummarizeTool
 
+    tool_registry.register_tool(BufferTool())
     tool_registry.register_tool(ClusterTool())
     tool_registry.register_tool(CorrelationTool())
     tool_registry.register_tool(FilterTool())
