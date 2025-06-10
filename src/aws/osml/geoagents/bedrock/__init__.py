@@ -15,3 +15,4 @@ from .summarize_tool import SummarizeTool
 from .tool_base import ToolBase, ToolExecutionError
 from .tool_registry import ToolRegistry
 from .tool_router import ToolRouter
+from .translate_tool import TranslateTool

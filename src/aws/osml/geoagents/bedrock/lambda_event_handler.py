@@ -11,6 +11,7 @@ from .sample_tool import SampleTool
 from .summarize_tool import SummarizeTool
 from .tool_registry import ToolRegistry
 from .tool_router import ToolRouter
+from .translate_tool import TranslateTool
 
 
 def create_tool_router() -> ToolRouter:
@@ -34,6 +35,7 @@ def create_tool_router() -> ToolRouter:
     tool_registry.register_tool(FilterTool())
     tool_registry.register_tool(SampleTool())
     tool_registry.register_tool(SummarizeTool())
+    tool_registry.register_tool(TranslateTool())
 
     return ToolRouter(
         tool_registry=tool_registry,
