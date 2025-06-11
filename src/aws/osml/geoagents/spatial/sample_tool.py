@@ -4,8 +4,7 @@ import logging
 from typing import Any
 
 from ..common import CommonParameters, ToolBase, ToolExecutionError, Workspace
-from ..common.local_assets import LocalAssets
-from .spatial_utils import read_geo_data_frame
+from .sample_operation import sample_operation
 
 logger = logging.getLogger(__name__)
 
@@ -45,51 +44,23 @@ class SampleTool(ToolBase):
         try:
             # Parse and validate the required parameters
             dataset_georef = CommonParameters.parse_dataset_georef(event, is_required=True)
-            # Get number of features parameter, defaulting to 10 if not provided
-            num_features = CommonParameters.parse_numeric_parameter(
-                event, "number_of_features", is_required=False, must_be_positive=True
-            )
-            if num_features is None:
-                num_features = 10
-
-            # Use context manager to handle local assets
             if dataset_georef is None:
                 raise ToolExecutionError(
                     "Missing required parameter: 'dataset'. "
                     "The parameter must be a valid georeference encoded as a string."
                 )
 
-            with LocalAssets(dataset_georef, workspace) as (item, local_asset_paths):
-                # Select the assets to process and load them into memory
-                selected_asset_key = next(iter(local_asset_paths))
-                local_dataset_path = local_asset_paths[selected_asset_key]
-                gdf = read_geo_data_frame(local_dataset_path)
+            # Get number of features parameter, defaulting to 10 if not provided
+            num_features = CommonParameters.parse_numeric_parameter(
+                event, "number_of_features", is_required=False, must_be_positive=True
+            )
 
-                # Get the requested number of features (cast to int for pandas head())
-                sampled_gdf = gdf.head(int(num_features))
+            # Call the operation function
+            text_result = sample_operation(
+                dataset_georef=dataset_georef, number_of_features=num_features, workspace=workspace
+            )
 
-                # Generate a text representation of the features
-                total_features = len(gdf)
-                sample_size = len(sampled_gdf)
-
-                # Create header with dataset info
-                text_result = [
-                    f"Sample of {sample_size} feature{'s' if sample_size != 1 else ''} "
-                    f"from dataset {dataset_georef} (total features: {total_features})\n"
-                ]
-
-                # Add column names
-                columns = sampled_gdf.columns.tolist()
-                text_result.append("Columns: " + ", ".join(columns) + "\n")
-
-                # Add feature data
-                text_result.append("\nFeatures:")
-                for idx, row in sampled_gdf.iterrows():
-                    text_result.append(f"\nFeature {idx}:")
-                    for col in columns:
-                        text_result.append(f"  {col}: {row[col]}")
-
-            return self.create_action_response(event, "\n".join(text_result), is_error=False)
+            return self.create_action_response(event, text_result, is_error=False)
 
         except ToolExecutionError as txe:
             # ToolExecutionErrors contain informative messages that can be relayed back to the
@@ -97,5 +68,5 @@ class SampleTool(ToolBase):
             raise txe
         except Exception as e:
             logger.error("A generic / unexpected exception has been thrown by the sample processing")
-            logger.exception(e, exc_info=True)
-            raise ToolExecutionError("Unable to sample the dataset.") from e
+            logger.exception(e)
+            raise ToolExecutionError(f"Unable to sample the dataset: {str(e)}")
