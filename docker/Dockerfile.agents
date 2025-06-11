@@ -68,5 +68,6 @@ ADD . ${LAMBDA_TASK_ROOT}
 # Install the custom code into the conda environment
 RUN conda run --no-capture-output -n ${CONDA_ENV_NAME} python3.12 -m pip install --no-cache-dir ${LAMBDA_TASK_ROOT}
 
+EXPOSE 8000
 # Set entry point to use the conda environment. This should match the entrypoint
 CMD ["aws.osml.geoagents.handler"]
