@@ -3,9 +3,10 @@
 import logging
 from typing import Any, cast
 
+from shapely.geometry.base import BaseGeometry
+
 from ..common import CommonParameters, ToolBase, ToolExecutionError, Workspace
-from .spatial_transforms import GeometryType, buffer_geometry, calculate_minimum_precision
-from .spatial_utils import create_length_limited_wkt
+from .buffer_operation import buffer_operation
 
 logger = logging.getLogger(__name__)
 
@@ -49,28 +50,10 @@ class BufferTool(ToolBase):
             if distance is None:
                 raise ToolExecutionError("Distance cannot be None when is_required=True")
 
-            # Buffer the geometry - cast to GeometryType to satisfy type checker
-            buffered_geometry = buffer_geometry(cast(GeometryType, geometry), distance)
+            # Call the operation function - cast to BaseGeometry to satisfy type checker
+            text_result = buffer_operation(cast(BaseGeometry, geometry), distance)
 
-            # Calculate minimum precision based on buffer distance and latitude
-            # Extract latitude from the geometry's centroid
-            try:
-                # Cast to GeometryType to ensure we can access centroid
-                geom = cast(GeometryType, geometry)
-                centroid = geom.centroid
-                latitude = centroid.y
-            except (AttributeError, Exception):
-                # Default to equator (0 latitude) if we can't get the centroid
-                logger.debug("Could not determine latitude from geometry, using default (equator)")
-                latitude = 0.0
-
-            minimum_precision = calculate_minimum_precision(distance, latitude)
-
-            # Convert to WKT with length limitation
-            wkt_result = create_length_limited_wkt(buffered_geometry, minimum_precision=minimum_precision)
-
-            # Generate response
-            text_result = f"The input geometry has been buffered by {distance} meters. Result: {wkt_result}"
+            # Create and return the response
             return self.create_action_response(event, text_result, is_error=False)
 
         except ToolExecutionError as txe:

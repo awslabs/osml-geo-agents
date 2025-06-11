@@ -7,13 +7,10 @@ from typing import Optional, Tuple, Union, cast
 import geopandas as gpd
 import pyproj
 from shapely.affinity import translate
-from shapely.geometry import GeometryCollection, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon
+from shapely.geometry.base import BaseGeometry
 
 # Set up logger
 logger = logging.getLogger(__name__)
-
-# Type alias for shapely geometries
-GeometryType = Union[Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon, GeometryCollection]
 
 
 def calculate_minimum_precision(distance_meters: float, latitude: float = 0.0) -> int:
@@ -45,8 +42,8 @@ def calculate_minimum_precision(distance_meters: float, latitude: float = 0.0) -
 
 
 def _project_to_utm(
-    geometry: GeometryType, utm_crs: Optional[Union[str, pyproj.CRS]] = None
-) -> Tuple[GeometryType, pyproj.CRS]:
+    geometry: BaseGeometry, utm_crs: Optional[Union[str, pyproj.CRS]] = None
+) -> Tuple[BaseGeometry, pyproj.CRS]:
     """
     Project a geometry from WGS84 to an appropriate UTM CRS.
 
@@ -72,14 +69,14 @@ def _project_to_utm(
         gdf_utm = gdf.to_crs(utm_crs)
 
         # Return the projected geometry and the UTM CRS
-        # Use cast to ensure the type checker knows we're returning a GeometryType
-        return cast(GeometryType, gdf_utm.geometry.iloc[0]), utm_crs
+        # Use cast to ensure the type checker knows we're returning a BaseGeometry
+        return cast(BaseGeometry, gdf_utm.geometry.iloc[0]), utm_crs
     except Exception as e:
         logger.error(f"Error projecting geometry to UTM: {e}")
         raise ValueError(f"Failed to project geometry to UTM: {e}")
 
 
-def _project_to_wgs84(geometry: GeometryType, from_crs: Union[str, pyproj.CRS]) -> GeometryType:
+def _project_to_wgs84(geometry: BaseGeometry, from_crs: Union[str, pyproj.CRS]) -> BaseGeometry:
     """
     Project a geometry from a specified CRS back to WGS84.
 
@@ -100,8 +97,8 @@ def _project_to_wgs84(geometry: GeometryType, from_crs: Union[str, pyproj.CRS]) 
         gdf_wgs84 = gdf.to_crs("EPSG:4326")
 
         # Return the projected geometry
-        # Use cast to ensure the type checker knows we're returning a GeometryType
-        return cast(GeometryType, gdf_wgs84.geometry.iloc[0])
+        # Use cast to ensure the type checker knows we're returning a BaseGeometry
+        return cast(BaseGeometry, gdf_wgs84.geometry.iloc[0])
     except Exception as e:
         logger.error(f"Error projecting geometry to WGS84: {e}")
         raise ValueError(f"Failed to project geometry to WGS84: {e}")
@@ -126,7 +123,7 @@ def _calculate_xy_offset(distance_meters: float, heading_degrees: float) -> Tupl
     return x_offset, y_offset
 
 
-def buffer_geometry(geometry: GeometryType, buffer_distance_meters: float, quad_segs: int = 3) -> GeometryType:
+def buffer_geometry(geometry: BaseGeometry, buffer_distance_meters: float, quad_segs: int = 3) -> BaseGeometry:
     """
     Buffer a geometry by a specified distance in meters.
 
@@ -156,7 +153,7 @@ def buffer_geometry(geometry: GeometryType, buffer_distance_meters: float, quad_
         raise ValueError(f"Failed to buffer geometry: {e}")
 
 
-def translate_geometry(geometry: GeometryType, distance_meters: float, heading_degrees: float) -> GeometryType:
+def translate_geometry(geometry: BaseGeometry, distance_meters: float, heading_degrees: float) -> BaseGeometry:
     """
     Translate a geometry by a specified distance and heading.
 

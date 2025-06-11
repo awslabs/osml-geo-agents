@@ -38,7 +38,7 @@ class LocalAssets:
         self.item = None
         self.local_asset_paths: Dict[str, Path] = {}
 
-    def __enter__(self) -> Tuple[dict, Dict[str, Path]]:
+    def __enter__(self) -> Tuple[Item, Dict[str, Path]]:
         """
         Enter the context, downloading the assets.
 

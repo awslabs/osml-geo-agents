@@ -1,15 +1,10 @@
 #  Copyright 2025 Amazon.com, Inc. or its affiliates.
 
 import unittest
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import geopandas as gpd
-import pandas as pd
-import pystac
-
-from aws.osml.geoagents.common import ToolExecutionError, Workspace
+from aws.osml.geoagents.common import Georeference, ToolExecutionError, Workspace
 from aws.osml.geoagents.spatial.sample_tool import SampleTool
 
 
@@ -28,52 +23,58 @@ class TestSampleTool(unittest.TestCase):
         self.assertEqual(self.tool.action_group, "SpatialReasoning")
         self.assertEqual(self.tool.function_name, "SAMPLE")
 
-    @patch("aws.osml.geoagents.spatial.sample_tool.read_geo_data_frame")
-    def test_sample_features_success(self, mock_read_gdf):
+    @patch("aws.osml.geoagents.spatial.sample_tool.sample_operation")
+    def test_sample_features_success(self, mock_sample_operation):
         """Test successful sampling of features from a dataset."""
-        # Create a mock geodataframe with some test data
-        test_data = {
-            "id": [1, 2, 3],
-            "name": ["Feature-A", "Feature-B", "Feature-C"],
-            "geometry": [None, None, None],  # Simplified for testing
-        }
-        mock_gdf = gpd.GeoDataFrame(pd.DataFrame(test_data))
-        mock_read_gdf.return_value = mock_gdf
-
-        # Create a mock STAC item
-        mock_item = pystac.Item(
-            id="test-item",
-            geometry=None,
-            bbox=None,
-            datetime=datetime.fromisoformat("2025-04-23T14:05:23Z"),
-            properties={"title": "Test Dataset"},
+        # Mock the sample_operation function to return a predefined result
+        mock_sample_operation.return_value = (
+            "Sample of 2 features from test-dataset:\nFeature 1: Test Feature\nFeature 2: Another Feature"
         )
 
-        # Set up the mock workspace context manager
-        self.workspace.get_item.return_value = mock_item
-        mock_local_assets = {"data": Path("/tmp/test/data.parquet")}
+        # Test with explicit number of features
+        event = {
+            "actionGroup": "SpatialReasoning",
+            "function": "SAMPLE",
+            "parameters": [
+                {"name": "dataset", "value": "georef:test-dataset", "type": "string"},
+                {"name": "number_of_features", "value": "2", "type": "number"},
+            ],
+        }
 
-        with patch("aws.osml.geoagents.spatial.sample_tool.LocalAssets") as mock_local_assets_cm:
-            mock_local_assets_cm.return_value.__enter__.return_value = (mock_item, mock_local_assets)
+        result = self.tool.handler(event, self.context, self.workspace)
 
-            # Test with explicit number of features
-            event = {
-                "actionGroup": "SpatialReasoning",
-                "function": "SAMPLE",
-                "parameters": [
-                    {"name": "dataset", "value": "georef:test-dataset", "type": "string"},
-                    {"name": "number_of_features", "value": "2", "type": "number"},
-                ],
-            }
+        # Verify sample_operation was called with the correct parameters
+        mock_sample_operation.assert_called_once_with(
+            dataset_georef=Georeference("georef:test-dataset"), number_of_features=2, workspace=self.workspace
+        )
 
-            result = self.tool.handler(event, self.context, self.workspace)
+        # Verify the response contains the mocked result
+        self.assertIn("Sample of 2 features from test-dataset", str(result["response"]))
 
-            # Verify the response contains expected information
-            response_str = str(result["response"])
-            self.assertIn("Sample of 2 features", response_str)
-            self.assertIn("Feature-A", response_str)
-            self.assertIn("Feature-B", response_str)
-            self.assertNotIn("Feature-C", response_str)
+    @patch("aws.osml.geoagents.spatial.sample_tool.sample_operation")
+    def test_sample_features_default_number(self, mock_sample_operation):
+        """Test sampling features with default number of features."""
+        # Mock the sample_operation function to return a predefined result
+        mock_sample_operation.return_value = "Sample of 10 features from test-dataset:\nFeature details..."
+
+        # Test without specifying number_of_features
+        event = {
+            "actionGroup": "SpatialReasoning",
+            "function": "SAMPLE",
+            "parameters": [
+                {"name": "dataset", "value": "georef:test-dataset", "type": "string"},
+            ],
+        }
+
+        result = self.tool.handler(event, self.context, self.workspace)
+
+        # Verify sample_operation was called with None for number_of_features
+        mock_sample_operation.assert_called_once_with(
+            dataset_georef=Georeference("georef:test-dataset"), number_of_features=None, workspace=self.workspace
+        )
+
+        # Verify the response contains the mocked result
+        self.assertIn("Sample of 10 features from test-dataset", str(result["response"]))
 
     def test_missing_dataset(self):
         """Test that the tool handles missing dataset parameter."""

@@ -8,9 +8,9 @@ import geopandas as gpd
 import pyarrow.parquet as pq
 import shapely
 from pystac import Item
+from shapely.geometry.base import BaseGeometry
 
 from ..common import Georeference, ToolExecutionError
-from .spatial_transforms import GeometryType
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +143,7 @@ def create_derived_stac_item(
     return filtered_dataset_item
 
 
-def create_length_limited_wkt(shape: GeometryType, max_length: int = 500, minimum_precision: int = 3) -> str:
+def create_length_limited_wkt(shape: BaseGeometry, max_length: int = 500, minimum_precision: int = 3) -> str:
     """
     Create a WKT string representation of a shape that is shorter than the specified maximum length.
 
