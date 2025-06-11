@@ -1,0 +1,21 @@
+#  Copyright 2025 Amazon.com, Inc. or its affiliates.
+
+services:
+  osml-mcp-service:
+    image: osml-geo-agents:latest
+    build:
+      context: ./
+      dockerfile: ./docker/Dockerfile.agents
+    entrypoint: ["conda", "run", "--no-capture-output", "-n", "osml_geo_agents"]
+    command: ["python3.12", "-m", "aws.osml.geoagents.mcp.mcp_server_entrypoint"]
+    environment:
+      - WORKSPACE_BUCKET_NAME=osml-agent-workspace-$OSML_ACCOUNT_ID-$AWS_DEFAULT_REGION
+      - WORKSPACE_LOCAL_CACHE=$HOME/OSML/Workspace
+      - AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN
+      - AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION
+    network_mode: host
+    ports:
+      - "8000:8000"
+    platform: "linux/amd64"
