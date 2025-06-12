@@ -4,7 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from aws.osml.geoagents.common import Georeference, ToolExecutionError, Workspace
+from aws.osml.geoagents.bedrock import ToolExecutionError
+from aws.osml.geoagents.common import Georeference, Workspace
 from aws.osml.geoagents.workspace import LoadTool
 
 

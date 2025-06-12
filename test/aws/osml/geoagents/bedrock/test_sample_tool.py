@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from aws.osml.geoagents.common import Georeference, ToolExecutionError, Workspace
-from aws.osml.geoagents.spatial.sample_tool import SampleTool
+from aws.osml.geoagents.bedrock import SampleTool, ToolExecutionError
+from aws.osml.geoagents.common import Georeference, Workspace
 
 
 class TestSampleTool(unittest.TestCase):
@@ -23,7 +23,7 @@ class TestSampleTool(unittest.TestCase):
         self.assertEqual(self.tool.action_group, "SpatialReasoning")
         self.assertEqual(self.tool.function_name, "SAMPLE")
 
-    @patch("aws.osml.geoagents.spatial.sample_tool.sample_operation")
+    @patch("aws.osml.geoagents.bedrock.sample_tool.sample_operation")
     def test_sample_features_success(self, mock_sample_operation):
         """Test successful sampling of features from a dataset."""
         # Mock the sample_operation function to return a predefined result
@@ -51,7 +51,7 @@ class TestSampleTool(unittest.TestCase):
         # Verify the response contains the mocked result
         self.assertIn("Sample of 2 features from test-dataset", str(result["response"]))
 
-    @patch("aws.osml.geoagents.spatial.sample_tool.sample_operation")
+    @patch("aws.osml.geoagents.bedrock.sample_tool.sample_operation")
     def test_sample_features_default_number(self, mock_sample_operation):
         """Test sampling features with default number of features."""
         # Mock the sample_operation function to return a predefined result

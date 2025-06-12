@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
 
-from aws.osml.geoagents.common import Georeference, ToolExecutionError, Workspace
-from aws.osml.geoagents.spatial.filter_tool import FilterTool
+from aws.osml.geoagents.bedrock import FilterTool, ToolExecutionError
+from aws.osml.geoagents.common import Georeference, Workspace
 
 
 class TestFilterTool(unittest.TestCase):
@@ -33,7 +33,7 @@ class TestFilterTool(unittest.TestCase):
         self.assertEqual(self.tool.action_group, "SpatialReasoning")
         self.assertEqual(self.tool.function_name, "FILTER")
 
-    @patch("aws.osml.geoagents.spatial.filter_tool.filter_operation")
+    @patch("aws.osml.geoagents.bedrock.filter_tool.filter_operation")
     def test_filter_features_success(self, mock_filter_operation):
         """Test successful filtering of features from a dataset."""
         # Mock the filter_operation function to return a predefined result
@@ -58,7 +58,7 @@ class TestFilterTool(unittest.TestCase):
         self.assertIn("The dataset georef:test-dataset has been filtered", str(result["response"]))
         self.assertIn("georef:FILTER-20250612", str(result["response"]))
 
-    @patch("aws.osml.geoagents.spatial.filter_tool.filter_operation")
+    @patch("aws.osml.geoagents.bedrock.filter_tool.filter_operation")
     def test_filter_features_error_handling(self, mock_filter_operation):
         """Test error handling when filter_operation raises an exception."""
         # Mock the filter_operation function to raise an exception

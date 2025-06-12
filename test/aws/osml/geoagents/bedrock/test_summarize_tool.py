@@ -3,8 +3,8 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from aws.osml.geoagents.common import Georeference, ToolExecutionError, Workspace
-from aws.osml.geoagents.spatial.summarize_tool import SummarizeTool
+from aws.osml.geoagents.bedrock import SummarizeTool, ToolExecutionError
+from aws.osml.geoagents.common import Georeference, Workspace
 
 
 class TestSummarizeTool(unittest.TestCase):
@@ -40,7 +40,7 @@ class TestSummarizeTool(unittest.TestCase):
         # Check the error message
         self.assertIn("Missing required parameter: 'dataset'", str(context.exception))
 
-    @patch("aws.osml.geoagents.common.CommonParameters.parse_dataset_georef")
+    @patch("aws.osml.geoagents.bedrock.CommonParameters.parse_dataset_georef")
     def test_none_dataset_parameter(self, mock_parse_dataset_georef):
         """Test error handling when the dataset parameter is parsed as None."""
         # Make the parse_dataset_georef method return None
@@ -53,8 +53,8 @@ class TestSummarizeTool(unittest.TestCase):
         # Check the error message
         self.assertIn("Missing required parameter: 'dataset'", str(context.exception))
 
-    @patch("aws.osml.geoagents.common.CommonParameters.parse_dataset_georef")
-    @patch("aws.osml.geoagents.spatial.summarize_tool.summarize_operation")
+    @patch("aws.osml.geoagents.bedrock.CommonParameters.parse_dataset_georef")
+    @patch("aws.osml.geoagents.bedrock.summarize_tool.summarize_operation")
     def test_tool_execution_error_from_operation(self, mock_summarize_operation, mock_parse_dataset_georef):
         """Test handling of ToolExecutionError from the summarize operation."""
         # Set up the mock to return a valid Georeference
@@ -72,8 +72,8 @@ class TestSummarizeTool(unittest.TestCase):
         # Check the error message
         self.assertEqual(error_message, str(context.exception))
 
-    @patch("aws.osml.geoagents.common.CommonParameters.parse_dataset_georef")
-    @patch("aws.osml.geoagents.spatial.summarize_tool.summarize_operation")
+    @patch("aws.osml.geoagents.bedrock.CommonParameters.parse_dataset_georef")
+    @patch("aws.osml.geoagents.bedrock.summarize_tool.summarize_operation")
     def test_generic_exception_from_operation(self, mock_summarize_operation, mock_parse_dataset_georef):
         """Test handling of generic exceptions from the summarize operation."""
         # Set up the mock to return a valid Georeference
@@ -92,8 +92,8 @@ class TestSummarizeTool(unittest.TestCase):
         self.assertIn(error_message, str(context.exception))
         self.assertIn("Unable to summarize the dataset", str(context.exception))
 
-    @patch("aws.osml.geoagents.common.CommonParameters.parse_dataset_georef")
-    @patch("aws.osml.geoagents.spatial.summarize_tool.summarize_operation")
+    @patch("aws.osml.geoagents.bedrock.CommonParameters.parse_dataset_georef")
+    @patch("aws.osml.geoagents.bedrock.summarize_tool.summarize_operation")
     def test_value_error_from_operation(self, mock_summarize_operation, mock_parse_dataset_georef):
         """Test handling of ValueError from the summarize operation."""
         # Set up the mock to return a valid Georeference

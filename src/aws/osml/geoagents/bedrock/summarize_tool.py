@@ -3,8 +3,10 @@
 import logging
 from typing import Any
 
-from ..common import CommonParameters, ToolBase, ToolExecutionError, Workspace
-from .summarize_operation import summarize_operation
+from ..common import Workspace
+from ..spatial import summarize_operation
+from .common_parameters import CommonParameters
+from .tool_base import ToolBase, ToolExecutionError
 
 logger = logging.getLogger(__name__)
 

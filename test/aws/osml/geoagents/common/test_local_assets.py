@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 from pystac import Item
 
-from aws.osml.geoagents.common import Georeference, LocalAssets, ToolExecutionError, Workspace
+from aws.osml.geoagents.common import Georeference, LocalAssets, Workspace
 
 
 class TestLocalAssets(unittest.TestCase):
@@ -93,7 +93,7 @@ class TestLocalAssets(unittest.TestCase):
         """Test error handling when workspace operations fail."""
         self.workspace.get_item.side_effect = Exception("Download error")
 
-        with self.assertRaises(ToolExecutionError) as context:
+        with self.assertRaises(ValueError) as context:
             with LocalAssets(self.georef, self.workspace):
                 pass
 

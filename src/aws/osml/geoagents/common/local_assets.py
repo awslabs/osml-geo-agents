@@ -6,7 +6,6 @@ from typing import Dict, Tuple
 from pystac import Item
 
 from .georeference import Georeference
-from .tool_base import ToolExecutionError
 from .workspace import Workspace
 
 logger = logging.getLogger(__name__)
@@ -68,7 +67,7 @@ class LocalAssets:
 
         :param dataset_georef: the georeference for the dataset to download
         :param workspace: the shared workspace
-        :raises ToolExecutionError: if the dataset can not be downloaded from the workspace
+        :raises ValueError: if the dataset can not be downloaded from the workspace
         :return: a tuple of the STAC item and a map of selected asset keys to local paths
         """
         try:
@@ -80,5 +79,5 @@ class LocalAssets:
             local_asset_paths = workspace.download_assets(item, selected_asset_keys)
         except Exception as e:
             logger.info(f"Unable to download dataset: {dataset_georef}", e)
-            raise ToolExecutionError(f"Unable to access the dataset: {dataset_georef} in the shared workspace.")
+            raise ValueError(f"Unable to access the dataset: {dataset_georef} in the shared workspace.")
         return item, local_asset_paths

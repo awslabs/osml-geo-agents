@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 import shapely
 
-from .georeference import Georeference
+from ..common import Georeference
 from .tool_base import ToolBase, ToolExecutionError
 
 logger = logging.getLogger(__name__)

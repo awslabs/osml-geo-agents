@@ -4,4 +4,4 @@
 # __init__.py file.
 # flake8: noqa
 
-from .lambda_event_handler import handler
+from .bedrock import handler

@@ -3,7 +3,14 @@
 import os
 from typing import Any
 
-from .common import ToolRegistry, ToolRouter
+from .buffer_tool import BufferTool
+from .cluster_tool import ClusterTool
+from .correlation_tool import CorrelationTool
+from .filter_tool import FilterTool
+from .sample_tool import SampleTool
+from .summarize_tool import SummarizeTool
+from .tool_registry import ToolRegistry
+from .tool_router import ToolRouter
 
 
 def create_tool_router() -> ToolRouter:
@@ -15,13 +22,11 @@ def create_tool_router() -> ToolRouter:
 
     tool_registry = ToolRegistry()
 
-    from .workspace import ListTool, LoadTool, UnloadTool
+    from ..workspace import ListTool, LoadTool, UnloadTool
 
     tool_registry.register_tool(ListTool())
     tool_registry.register_tool(LoadTool())
     tool_registry.register_tool(UnloadTool())
-
-    from .spatial import BufferTool, ClusterTool, CorrelationTool, FilterTool, SampleTool, SummarizeTool
 
     tool_registry.register_tool(BufferTool())
     tool_registry.register_tool(ClusterTool())

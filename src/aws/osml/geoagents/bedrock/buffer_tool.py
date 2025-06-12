@@ -5,8 +5,10 @@ from typing import Any, cast
 
 from shapely.geometry.base import BaseGeometry
 
-from ..common import CommonParameters, ToolBase, ToolExecutionError, Workspace
-from .buffer_operation import buffer_operation
+from ..common import Workspace
+from ..spatial import buffer_operation
+from .common_parameters import CommonParameters
+from .tool_base import ToolBase, ToolExecutionError
 
 logger = logging.getLogger(__name__)
 

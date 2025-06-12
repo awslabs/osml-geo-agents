@@ -7,7 +7,8 @@ from unittest.mock import Mock
 
 from pystac import Item
 
-from aws.osml.geoagents.common import Georeference, ToolExecutionError, Workspace
+from aws.osml.geoagents.bedrock import ToolExecutionError
+from aws.osml.geoagents.common import Georeference, Workspace
 from aws.osml.geoagents.workspace import UnloadTool
 
 

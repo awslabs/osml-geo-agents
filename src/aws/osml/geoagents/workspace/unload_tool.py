@@ -3,7 +3,8 @@
 import logging
 from typing import Any
 
-from ..common import CommonParameters, ToolBase, ToolExecutionError, Workspace
+from ..bedrock import CommonParameters, ToolBase, ToolExecutionError
+from ..common import Workspace
 
 logger = logging.getLogger(__name__)
 

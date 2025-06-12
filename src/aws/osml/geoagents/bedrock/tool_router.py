@@ -3,9 +3,9 @@
 import logging
 from typing import Any
 
+from ..common import Workspace
 from .tool_base import ToolBase, ToolExecutionError
 from .tool_registry import ToolRegistry
-from .workspace import Workspace
 
 logger = logging.getLogger(__name__)
 
