@@ -4,8 +4,8 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
-from aws.osml.geoagents.common import ToolExecutionError, Workspace
-from aws.osml.geoagents.spatial.buffer_tool import BufferTool
+from aws.osml.geoagents.bedrock import BufferTool, ToolExecutionError
+from aws.osml.geoagents.common import Workspace
 
 
 class TestBufferTool(unittest.TestCase):
@@ -38,7 +38,7 @@ class TestBufferTool(unittest.TestCase):
         self.assertEqual(self.handler.action_group, "GeoGeometryOperations")
         self.assertEqual(self.handler.function_name, "OSML-GEO-BUFFER")
 
-    @patch("aws.osml.geoagents.spatial.buffer_tool.buffer_operation")
+    @patch("aws.osml.geoagents.bedrock.buffer_tool.buffer_operation")
     def test_handler_successful_buffer(self, mock_buffer_operation):
         """Test successful buffering of a geometry with mocked operation."""
         # Set up the mock to return a predefined result
@@ -62,7 +62,7 @@ class TestBufferTool(unittest.TestCase):
         self.assertIn(expected_result, result_text)
         self.assertNotIn("isError", result_text)
 
-    @patch("aws.osml.geoagents.spatial.buffer_tool.buffer_operation")
+    @patch("aws.osml.geoagents.bedrock.buffer_tool.buffer_operation")
     def test_handler_passes_correct_parameters(self, mock_buffer_operation):
         """Test that parameters are correctly parsed and passed to buffer_operation."""
         # Set up the mock
@@ -79,7 +79,7 @@ class TestBufferTool(unittest.TestCase):
         self.assertEqual(len(args), 2)
         self.assertEqual(args[1], 1000.0)  # Distance should be converted to float
 
-    @patch("aws.osml.geoagents.spatial.buffer_tool.buffer_operation")
+    @patch("aws.osml.geoagents.bedrock.buffer_tool.buffer_operation")
     def test_handler_error_handling(self, mock_buffer_operation):
         """Test error handling when buffer_operation raises an exception."""
         # Set up the mock to raise an exception
@@ -121,7 +121,7 @@ class TestBufferTool(unittest.TestCase):
             self.handler.handler(event_missing_distance, None, self.mock_workspace)
         self.assertIn("Missing required parameter", str(context.exception))
 
-    @patch("aws.osml.geoagents.spatial.buffer_tool.buffer_operation")
+    @patch("aws.osml.geoagents.bedrock.buffer_tool.buffer_operation")
     def test_invalid_distance_parameter(self, mock_buffer_operation):
         """Test error handling when distance parameter is invalid."""
         # Create an event with invalid distance

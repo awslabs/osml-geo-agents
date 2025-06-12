@@ -10,7 +10,7 @@ import shapely
 from pystac import Item
 from shapely.geometry import Point
 
-from aws.osml.geoagents.common import Georeference, ToolExecutionError
+from aws.osml.geoagents.common import Georeference
 from aws.osml.geoagents.spatial.spatial_utils import (
     create_derived_stac_item,
     create_length_limited_wkt,
@@ -92,7 +92,7 @@ class TestSpatialUtils(unittest.TestCase):
         mock_read_parquet.side_effect = Exception("Read error")
 
         with patch("aws.osml.geoagents.spatial.spatial_utils.is_parquet_file", return_value=True):
-            with self.assertRaises(ToolExecutionError):
+            with self.assertRaises(ValueError):
                 read_geo_data_frame(Path("test.parquet"))
 
     def test_write_geo_data_frame(self):

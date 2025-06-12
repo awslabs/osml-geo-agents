@@ -3,7 +3,7 @@
 import json
 import unittest
 
-from aws.osml.geoagents.common import ToolBase
+from aws.osml.geoagents.bedrock import ToolBase
 
 
 class TestTool(ToolBase):

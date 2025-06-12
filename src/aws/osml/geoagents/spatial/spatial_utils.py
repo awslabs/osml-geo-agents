@@ -10,7 +10,7 @@ import shapely
 from pystac import Item
 from shapely.geometry.base import BaseGeometry
 
-from ..common import Georeference, ToolExecutionError
+from ..common import Georeference
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ def read_geo_data_frame(file_path: Path) -> gpd.GeoDataFrame:
     Read a GeoDataFrame from a file.
 
     :param file_path: Path to the file to read
-    :raises ToolExecutionError: if the file can not be read
+    :raises ValueError: if the file can not be read
     :return: the GeoDataFrame
     """
     # TODO: Dig into this and understand how GeoPandas normally handles multiple file formats.
@@ -66,12 +66,12 @@ def read_geo_data_frame(file_path: Path) -> gpd.GeoDataFrame:
         else:
             gdf = gpd.GeoDataFrame.from_file(file_path)
         if gdf is None:
-            raise ToolExecutionError(f"Unable to create GeoDataFrame from: {file_path.name}")
+            raise ValueError(f"Unable to create GeoDataFrame from: {file_path.name}")
 
         return gdf
     except Exception as e:
         logger.info(f"Unable to create GeoDataFrame from: {file_path.name}", e)
-        raise ToolExecutionError(f"Unable to create GeoDataFrame from: {file_path.name}")
+        raise ValueError(f"Unable to create GeoDataFrame from: {file_path.name}")
 
 
 def write_geo_data_frame(dataset_path: Path, dataset_gdf: gpd.GeoDataFrame) -> None:
@@ -92,12 +92,12 @@ def validate_dataset_crs(dataset: gpd.GeoDataFrame, georef: Georeference) -> Non
 
     :param dataset: GeoDataFrame to validate
     :param georef: Georeference for the dataset
-    :raises ToolExecutionError: if the dataset uses an unsupported CRS
+    :raises ValueError: if the dataset uses an unsupported CRS
     """
     if dataset.crs is None:
         dataset.set_crs("EPSG:4326", inplace=True)
     elif dataset.crs != "EPSG:4326":
-        raise ToolExecutionError(f"Dataset {georef} does not use a supported CRS. Only EPSG:4326 is supported.")
+        raise ValueError(f"Dataset {georef} does not use a supported CRS. Only EPSG:4326 is supported.")
 
 
 def create_derived_stac_item(

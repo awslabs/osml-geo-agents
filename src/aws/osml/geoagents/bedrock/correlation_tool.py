@@ -3,8 +3,10 @@
 import logging
 from typing import Any
 
-from ..common import CommonParameters, ToolBase, ToolExecutionError, Workspace
-from .correlation_operation import CorrelationTypes, correlation_operation
+from ..common import Workspace
+from ..spatial import CorrelationTypes, correlation_operation
+from .common_parameters import CommonParameters
+from .tool_base import ToolBase, ToolExecutionError
 
 logger = logging.getLogger(__name__)
 

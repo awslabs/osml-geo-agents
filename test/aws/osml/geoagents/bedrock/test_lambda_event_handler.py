@@ -7,4 +7,4 @@ from unittest.mock import patch
 class TestLambdaEventHandler(unittest.TestCase):
     @patch.dict("os.environ", {"WORKSPACE_BUCKET_NAME": "test_workspace_bucket"})
     def test_valid_import(self):
-        from aws.osml.geoagents.lambda_event_handler import handler  # noqa: F401
+        from aws.osml.geoagents.bedrock import handler  # noqa: F401

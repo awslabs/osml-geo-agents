@@ -3,8 +3,7 @@
 import unittest
 from enum import Enum, auto
 
-from aws.osml.geoagents.common.common_parameters import CommonParameters
-from aws.osml.geoagents.common.tool_base import ToolExecutionError
+from aws.osml.geoagents.bedrock import CommonParameters, ToolExecutionError
 
 
 class TestEnum(Enum):

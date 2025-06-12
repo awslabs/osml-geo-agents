@@ -4,7 +4,8 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
-from aws.osml.geoagents.common import ToolBase, ToolRegistry, ToolRouter, Workspace
+from aws.osml.geoagents.bedrock import ToolBase, ToolRegistry, ToolRouter
+from aws.osml.geoagents.common import Workspace
 
 
 class TestToolRouter(unittest.TestCase):
@@ -19,7 +20,7 @@ class TestToolRouter(unittest.TestCase):
             workspace_local_cache=self.workspace_cache,
         )
 
-    @patch("aws.osml.geoagents.common.tool_router.Workspace")
+    @patch("aws.osml.geoagents.bedrock.tool_router.Workspace")
     def test_successful_request_handling(self, mock_workspace_class):
         """Test successful handling of a valid request."""
         # Setup mock workspace
@@ -87,7 +88,7 @@ class TestToolRouter(unittest.TestCase):
         self.assertIn("error", error_body)
         self.assertIn("Unknown action group or function", error_body["error"])
 
-    @patch("aws.osml.geoagents.common.tool_router.Workspace")
+    @patch("aws.osml.geoagents.bedrock.tool_router.Workspace")
     def test_tool_exception_handling(self, mock_workspace_class):
         """Test handling of exceptions thrown by tools."""
         # Setup mock workspace

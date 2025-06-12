@@ -4,9 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from aws.osml.geoagents.common import Georeference, ToolExecutionError, Workspace
-from aws.osml.geoagents.spatial.correlation_operation import CorrelationTypes
-from aws.osml.geoagents.spatial.correlation_tool import CorrelationTool
+from aws.osml.geoagents.bedrock import CorrelationTool, ToolExecutionError
+from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.spatial import CorrelationTypes
 
 
 class TestCorrelationTool(unittest.TestCase):
@@ -36,7 +36,7 @@ class TestCorrelationTool(unittest.TestCase):
         self.assertEqual(self.tool.action_group, "SpatialReasoning")
         self.assertEqual(self.tool.function_name, "CORRELATE")
 
-    @patch("aws.osml.geoagents.spatial.correlation_tool.correlation_operation")
+    @patch("aws.osml.geoagents.bedrock.correlation_tool.correlation_operation")
     def test_handler_with_all_parameters(self, mock_correlation_operation):
         """Test correlation tool handler with all parameters."""
         # Add geometry column parameters to the event
@@ -77,7 +77,7 @@ class TestCorrelationTool(unittest.TestCase):
         self.assertIn("intersection operation", str(result["response"]))
         self.assertIn("georef:CORRELATE-20250612", str(result["response"]))
 
-    @patch("aws.osml.geoagents.spatial.correlation_tool.correlation_operation")
+    @patch("aws.osml.geoagents.bedrock.correlation_tool.correlation_operation")
     def test_handler_with_minimal_parameters(self, mock_correlation_operation):
         """Test correlation tool handler with minimal parameters."""
         # Create event with only required parameters
@@ -117,7 +117,7 @@ class TestCorrelationTool(unittest.TestCase):
         self.assertIn("The datasets georef:dataset1 and georef:dataset2 have been correlated", str(result["response"]))
         self.assertIn("intersection operation", str(result["response"]))
 
-    @patch("aws.osml.geoagents.spatial.correlation_tool.correlation_operation")
+    @patch("aws.osml.geoagents.bedrock.correlation_tool.correlation_operation")
     def test_handler_with_different_correlation_type(self, mock_correlation_operation):
         """Test correlation tool handler with difference correlation type."""
         # Modify event to use difference correlation type
@@ -155,7 +155,7 @@ class TestCorrelationTool(unittest.TestCase):
         self.assertIn("The datasets georef:dataset1 and georef:dataset2 have been correlated", str(result["response"]))
         self.assertIn("difference operation", str(result["response"]))
 
-    @patch("aws.osml.geoagents.spatial.correlation_tool.correlation_operation")
+    @patch("aws.osml.geoagents.bedrock.correlation_tool.correlation_operation")
     def test_handler_error_handling(self, mock_correlation_operation):
         """Test error handling when correlation_operation raises an exception."""
         # Mock the correlation_operation function to raise an exception

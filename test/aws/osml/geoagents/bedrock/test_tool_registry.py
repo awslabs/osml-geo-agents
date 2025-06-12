@@ -3,7 +3,7 @@
 import unittest
 from collections import defaultdict
 
-from aws.osml.geoagents.common import ToolBase, ToolRegistry
+from aws.osml.geoagents.bedrock import ToolBase, ToolRegistry
 
 
 class MockTool(ToolBase):

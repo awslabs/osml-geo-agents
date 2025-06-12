@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from aws.osml.geoagents.common import Georeference, ToolExecutionError, Workspace
-from aws.osml.geoagents.spatial.cluster_tool import ClusterTool
+from aws.osml.geoagents.bedrock import ClusterTool, ToolExecutionError
+from aws.osml.geoagents.common import Georeference, Workspace
 
 
 class TestClusterTool(unittest.TestCase):
@@ -41,7 +41,7 @@ class TestClusterTool(unittest.TestCase):
         self.assertEqual(self.tool.action_group, "SpatialReasoning")
         self.assertEqual(self.tool.function_name, "CLUSTER")
 
-    @patch("aws.osml.geoagents.spatial.cluster_tool.cluster_operation")
+    @patch("aws.osml.geoagents.bedrock.cluster_tool.cluster_operation")
     def test_handler_successful_clustering(self, mock_cluster_operation):
         """Test successful clustering with valid parameters."""
         # Mock the cluster_operation function to return a predefined result
@@ -77,7 +77,7 @@ class TestClusterTool(unittest.TestCase):
         self.assertIn("cluster-1: 5 features", result_text)
         self.assertIn("cluster-2: 3 features", result_text)
 
-    @patch("aws.osml.geoagents.spatial.cluster_tool.cluster_operation")
+    @patch("aws.osml.geoagents.bedrock.cluster_tool.cluster_operation")
     def test_handler_with_max_clusters(self, mock_cluster_operation):
         """Test clustering with max_clusters parameter."""
         # Add max_clusters parameter to the event
@@ -117,7 +117,7 @@ class TestClusterTool(unittest.TestCase):
         self.assertIn("cluster-0: 4 features", result_text)
         self.assertNotIn("cluster-2", result_text)
 
-    @patch("aws.osml.geoagents.spatial.cluster_tool.cluster_operation")
+    @patch("aws.osml.geoagents.bedrock.cluster_tool.cluster_operation")
     def test_handler_no_clusters_found(self, mock_cluster_operation):
         """Test handling of datasets where no clusters are found."""
         # Mock the cluster_operation function to return a predefined result with no clusters
@@ -187,7 +187,7 @@ class TestClusterTool(unittest.TestCase):
         self.assertIn("Unable to parse", str(context.exception))
         self.assertIn("distance", str(context.exception))
 
-    @patch("aws.osml.geoagents.spatial.cluster_tool.cluster_operation")
+    @patch("aws.osml.geoagents.bedrock.cluster_tool.cluster_operation")
     def test_handler_error_handling(self, mock_cluster_operation):
         """Test error handling when cluster_operation raises an exception."""
         # Mock the cluster_operation function to raise an exception

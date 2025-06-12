@@ -3,7 +3,7 @@
 import time
 import unittest
 
-from aws.osml.geoagents.common.georeference import GEOREF_PROTOCOL, Georeference
+from aws.osml.geoagents.common import GEOREF_PROTOCOL, Georeference
 
 
 class TestGeoreference(unittest.TestCase):
