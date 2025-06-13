@@ -1,0 +1,13 @@
+{
+  "projectName": "OSML",
+  "account": {
+    "id": "123456789012",
+    "region": "us-west-2"
+  },
+  "geoAgent": {
+    "config": {
+      "targetVpcId": "vpc-xxxxxxxxxxxxxxxxx",
+      "workspaceBucketName": "osml-agent-workspace-123456789012-us-west-2"
+    }
+  }
+}

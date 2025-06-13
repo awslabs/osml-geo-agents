@@ -1,11 +1,7 @@
-## My Project
+## OSML Geo Agents
 
-TODO: Fill this README out!
-
-Be sure to:
-
-* Change the title in this README
-* Edit your repository description on GitHub
+### Deploying OSML Geo Agents
+The [CDK README](cdk/README.md) contains detailed instructions about how to configure and deploy OSML Geo Agents into your AWS account.
 
 ## Security
 
@@ -14,4 +10,3 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 ## License
 
 This project is licensed under the Apache-2.0 License.
-

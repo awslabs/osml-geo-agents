@@ -26,32 +26,40 @@ This CDK project deploys the infrastructure required to run OSML Geo Agents on A
 - An existing VPC with private subnets and NAT Gateway
 - An S3 bucket for the workspace
 
-## Deployment
+## Configuration
 
+### Required Parameters
+- `targetVpcId`: ID of the VPC where the Lambda function will be deployed
+- `workspaceBucketName`: Name of the S3 bucket used as workspace
+
+Set the deployment context by updating `cdk.context.json` with your AWS account number, AWS region, targetVpcId, and workspaceBucketName:
+```json
+{
+  "projectName": "OSML",
+  "account": {
+    "id": "123456789012",
+    "region": "us-west-2"
+  },
+  "geoAgent": {
+    "config": {
+      "targetVpcId": "vpc-xxxxxxxxxxxxxxxxx",
+      "workspaceBucketName": "osml-agent-workspace-123456789012-us-west-2"
+    }
+  }
+}
+```
+
+## Deploy OSML Geo Agents
+Navigate to the osml-geo-agents cdk directory, then
 1. Install dependencies:
 ```bash
 npm install
 ```
 
-2. Set environment variables:
+2. Deploy the stack:
 ```bash
-export CDK_DEPLOY_ACCOUNT=123456789012
-export CDK_DEPLOY_REGION=us-west-2
+npm run deploy
 ```
-
-3. Deploy the stack:
-```bash
-cdk deploy \
-  --context targetVpcId=vpc-12345678901234567 \
-  --context workspaceBucketName=osml-agent-workspace-123456789012-us-west-2
-```
-
-## Configuration
-
-### Required Context Parameters
-
-- `targetVpcId`: ID of the VPC where the Lambda function will be deployed
-- `workspaceBucketName`: Name of the S3 bucket used as workspace
 
 ## Development
 
@@ -76,7 +84,7 @@ cdk deploy \
 * `npm run test`    - Run the jest unit tests and generate CDK NAG report
 * `cdk synth`       - Synthesize CloudFormation template
 * `cdk diff`        - Compare deployed stack with current state
-* `cdk deploy`      - Deploy this stack to AWS
+* `npm run deploy` or `cdk deploy`     - Deploy this stack to AWS
 
 ### Testing and Security Analysis
 

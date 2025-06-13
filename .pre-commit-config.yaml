@@ -61,6 +61,7 @@ repos:
             schemas/.*|
             test/data/.*|
             cdk/osml-geo-agents-config/.*|
+            cdk/cdk.context.json|
             cdk/cdk.json|
             cdk/.gitignore|
             cdk/jest.config.js|
@@ -86,6 +87,7 @@ repos:
             schemas/.*|
             test/data/.*|
             cdk/osml-geo-agents-config/.*|
+            cdk/cdk.context.json|
             cdk/cdk.json|
             cdk/.gitignore|
             cdk/jest.config.js|
