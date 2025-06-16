@@ -63,8 +63,10 @@ repos:
             cdk/osml-geo-agents-config/.*|
             cdk/cdk.json|
             cdk/.gitignore|
+            cdk/eslint.config.mjs|
             cdk/jest.config.js|
             cdk/.npmignore|
+            cdk/.prettierrc|
             cdk/tsconfig.json|
             cdk/package.json|
             cdk/package-lock.json|
@@ -88,8 +90,10 @@ repos:
             cdk/osml-geo-agents-config/.*|
             cdk/cdk.json|
             cdk/.gitignore|
+            cdk/eslint.config.mjs|
             cdk/jest.config.js|
             cdk/.npmignore|
+            cdk/.prettierrc|
             cdk/tsconfig.json|
             cdk/package.json|
             cdk/package-lock.json|
@@ -100,3 +104,35 @@ repos:
             setup.py|
             tox.ini
           )$
+
+  - repo: local
+    hooks:
+      - id: npm-install
+        name: Install npm dependencies
+        entry: bash -c 'cd cdk && npm ci'
+        language: system
+        files: ^cdk/.*\.(ts|tsx|js|jsx|json)$
+        pass_filenames: false
+
+      - id: jest
+        name: Jest Tests
+        entry: bash -c 'cd cdk && npm run test'
+        language: system
+        files: ^cdk/.*\.(ts|tsx)$
+        types: [ file ]
+        pass_filenames: false
+        stages: [manual]  # This makes the hook only run when explicitly called TODO: remove this
+
+      - id: eslint
+        name: ESLint
+        entry: bash -c 'cd cdk && npm run lint:fix'
+        language: system
+        files: ^cdk/.*\.(ts|tsx)$
+        types: [file]
+
+      - id: prettier
+        name: Prettier
+        entry: bash -c 'cd cdk && npm run format'
+        language: system
+        files: ^cdk/.*\.(ts|tsx|js|jsx|json|yml|yaml|md)$
+        types: [file]

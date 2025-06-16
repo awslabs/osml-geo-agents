@@ -84,7 +84,8 @@
               "required": true
             }
           }
-        },{
+        },
+        {
           "name": "SUMMARIZE",
           "description": "Describe a dataset including summary statistics and information about each column.",
           "parameters": {
@@ -94,7 +95,8 @@
               "required": true
             }
           }
-        },{
+        },
+        {
           "name": "SAMPLE",
           "description": "Return a few features selected at random from a dataset.",
           "parameters": {
@@ -109,7 +111,8 @@
               "required": false
             }
           }
-        },{
+        },
+        {
           "name": "CORRELATE",
           "description": "Compute a new dataset by correlating features from two datasets.",
           "parameters": {
@@ -134,7 +137,8 @@
               "required": false
             }
           }
-        },{
+        },
+        {
           "name": "CLUSTER",
           "description": "Create a new dataset that contains different assets for clusters of features.",
           "parameters": {

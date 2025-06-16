@@ -29,17 +29,20 @@ This CDK project deploys the infrastructure required to run OSML Geo Agents on A
 ## Deployment
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
 
 2. Set environment variables:
+
 ```bash
 export CDK_DEPLOY_ACCOUNT=123456789012
 export CDK_DEPLOY_REGION=us-west-2
 ```
 
 3. Deploy the stack:
+
 ```bash
 cdk deploy \
   --context targetVpcId=vpc-12345678901234567 \
@@ -71,12 +74,12 @@ cdk deploy \
 
 ### Useful Commands
 
-* `npm run build`   - Compile TypeScript to JavaScript
-* `npm run watch`   - Watch for changes and compile
-* `npm run test`    - Run the jest unit tests and generate CDK NAG report
-* `cdk synth`       - Synthesize CloudFormation template
-* `cdk diff`        - Compare deployed stack with current state
-* `cdk deploy`      - Deploy this stack to AWS
+- `npm run build` - Compile TypeScript to JavaScript
+- `npm run watch` - Watch for changes and compile
+- `npm run test` - Run the jest unit tests and generate CDK NAG report
+- `cdk synth` - Synthesize CloudFormation template
+- `cdk diff` - Compare deployed stack with current state
+- `cdk deploy` - Deploy this stack to AWS
 
 ### Testing and Security Analysis
 
