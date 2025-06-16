@@ -6,6 +6,9 @@ on:
     branches: ["main"]
 
 jobs:
-  tox:
+  python-checks:
     uses: ./.github/workflows/tox.yml
+    secrets: inherit
+  cdk-checks:
+    uses: ./.github/workflows/cdk.yml
     secrets: inherit

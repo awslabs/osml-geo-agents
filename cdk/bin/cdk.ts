@@ -4,8 +4,9 @@
  * Copyright 2025 Amazon.com, Inc. or its affiliates.
  */
 
-import * as cdk from 'aws-cdk-lib';
-import { OSMLGeoAgentStack } from '../lib/osml-geo-agent-stack';
+import * as cdk from "aws-cdk-lib";
+
+import { OSMLGeoAgentStack } from "../lib/osml-geo-agent-stack";
 
 const app = new cdk.App();
 
@@ -18,10 +19,10 @@ const environment = {
 
 console.log(`Using Environment: ${JSON.stringify(environment, null, 2)}`);
 
-const stack = new OSMLGeoAgentStack(app, 'OSML-GeoAgent', {
+new OSMLGeoAgentStack(app, "OSML-GeoAgent", {
   env: environment,
-  targetVpcId: app.node.tryGetContext('targetVpcId'),
-  workspaceBucketName: app.node.tryGetContext('workspaceBucketName'),
+  targetVpcId: app.node.tryGetContext("targetVpcId"),
+  workspaceBucketName: app.node.tryGetContext("workspaceBucketName"),
   description:
-      "OSML GeoAgent, Guidance for Processing Overhead Imagery on AWS (SO9240)"
+    "OSML GeoAgent, Guidance for Processing Overhead Imagery on AWS (SO9240)"
 });
