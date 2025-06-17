@@ -5,6 +5,7 @@ from typing import Any
 
 from .buffer_tool import BufferTool
 from .cluster_tool import ClusterTool
+from .combine_tool import CombineTool
 from .correlation_tool import CorrelationTool
 from .filter_tool import FilterTool
 from .sample_tool import SampleTool
@@ -31,6 +32,7 @@ def create_tool_router() -> ToolRouter:
 
     tool_registry.register_tool(BufferTool())
     tool_registry.register_tool(ClusterTool())
+    tool_registry.register_tool(CombineTool())
     tool_registry.register_tool(CorrelationTool())
     tool_registry.register_tool(FilterTool())
     tool_registry.register_tool(SampleTool())

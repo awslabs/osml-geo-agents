@@ -11,6 +11,7 @@ from shapely import from_wkt
 from ..common import Georeference, Workspace
 from ..spatial.buffer_operation import buffer_operation
 from ..spatial.cluster_operation import cluster_operation
+from ..spatial.combine_operation import combine_operation
 from ..spatial.correlation_operation import CorrelationTypes, correlation_operation
 from ..spatial.filter_operation import filter_operation
 from ..spatial.sample_operation import sample_operation
@@ -219,6 +220,31 @@ def translate_geometry(
     except Exception as e:
         logger.error(f"Error in translate_geometry: {e}")
         return f"Error translating geometry: {str(e)}"
+
+
+@mcp.tool()
+def combine_geometries(
+    geometry1: str = Field(description="WKT string representation of the first geometry"),
+    geometry2: str = Field(description="WKT string representation of the second geometry"),
+    operation: str = Field(description='Type of operation to perform ("union", "intersection", or "difference")'),
+) -> str:
+    """
+    Combine two geometries using the specified operation (union, intersection, or difference).
+    """
+    logger.info(f"Combining geometries using {operation} operation")
+
+    try:
+        # Convert WKT strings to Shapely geometries
+        shapely_geometry1 = from_wkt(geometry1)
+        shapely_geometry2 = from_wkt(geometry2)
+
+        # Call the combine operation
+        result = combine_operation(shapely_geometry1, shapely_geometry2, operation)
+
+        return result
+    except Exception as e:
+        logger.error(f"Error in combine_geometries: {e}")
+        return f"Error combining geometries: {str(e)}"
 
 
 def configure_logging(level: int = logging.DEBUG) -> None:
