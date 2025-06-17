@@ -81,6 +81,27 @@
               "required": true
             }
           }
+        },
+        {
+          "name": "OSML-GEO-COMBINE",
+          "description": "Combine two geometries using union, intersection, or difference operations.",
+          "parameters": {
+            "geometry1": {
+              "type": "string",
+              "description": "A shape literal in WKT format (ex. POLYGON, POINT, or LINESTRING).",
+              "required": true
+            },
+            "geometry2": {
+              "type": "string",
+              "description": "A shape literal in WKT format (ex. POLYGON, POINT, or LINESTRING).",
+              "required": true
+            },
+            "operation": {
+              "type": "string",
+              "description": "Type of operation to perform (\"union\", \"intersection\", or \"difference\").",
+              "required": true
+            }
+          }
         }
       ]
     }

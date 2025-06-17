@@ -6,6 +6,7 @@
 
 from .buffer_tool import BufferTool
 from .cluster_tool import ClusterTool
+from .combine_tool import CombineTool
 from .common_parameters import CommonParameters
 from .correlation_tool import CorrelationTool
 from .filter_tool import FilterTool
