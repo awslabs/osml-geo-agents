@@ -5,6 +5,8 @@
 # flake8: noqa
 
 
+from .geo_data_reference import GeoDataReference, GeoDataReferenceType
 from .georeference import GEOREF_PROTOCOL, Georeference
 from .local_assets import LocalAssets
+from .stac_reference import STAC_PROTOCOL, STACReference
 from .workspace import Workspace
