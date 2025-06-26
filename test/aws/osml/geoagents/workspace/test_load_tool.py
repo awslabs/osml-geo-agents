@@ -38,11 +38,11 @@ class TestLoadTool(unittest.TestCase):
         # Mock the S3 client and download_file method
         self.mock_workspace.s3_client = Mock()
         self.mock_workspace.s3_transfer_config = {}
-        self.mock_workspace.publish_item = Mock()
+        self.mock_workspace.create_item = Mock()
 
-        # Mock the publish_item to return a georeference
+        # Mock the create_item to return a georeference
         mock_georef = Georeference.from_parts(item_id="abcd1234")
-        self.mock_workspace.publish_item.return_value = mock_georef
+        self.mock_workspace.create_item.return_value = mock_georef
 
         # Call the handler
         result = self.tool.handler(self.event, {}, self.mock_workspace)
@@ -56,8 +56,8 @@ class TestLoadTool(unittest.TestCase):
         self.assertEqual(self.mock_workspace.s3_client.download_file.call_args[1]["Bucket"], "test-bucket")
         self.assertEqual(self.mock_workspace.s3_client.download_file.call_args[1]["Key"], "test-key.tif")
 
-        # Verify publish_item was called
-        self.mock_workspace.publish_item.assert_called_once()
+        # Verify create_item was called
+        self.mock_workspace.create_item.assert_called_once()
 
     def test_handler_missing_s3_url(self):
         """Test handling of missing s3_url parameter."""
@@ -119,8 +119,8 @@ class TestLoadTool(unittest.TestCase):
         self.assertIn("Failed to download asset from S3", str(context.exception))
 
     @patch("aws.osml.geoagents.workspace.load_tool.secrets")
-    def test_handler_publish_error(self, mock_secrets):
-        """Test handling of publish error."""
+    def test_handler_create_error(self, mock_secrets):
+        """Test handling of create error."""
         # Mock the secrets.token_hex to return a predictable value
         mock_secrets.token_hex.return_value = "abcd1234"
 
@@ -128,15 +128,15 @@ class TestLoadTool(unittest.TestCase):
         self.mock_workspace.s3_client = Mock()
         self.mock_workspace.s3_transfer_config = {}
 
-        # Mock the publish_item to raise an exception
-        self.mock_workspace.publish_item = Mock(side_effect=Exception("Publish failed"))
+        # Mock the create_item to raise an exception
+        self.mock_workspace.create_item = Mock(side_effect=Exception("Create failed"))
 
         # Call the handler and expect an exception
         with self.assertRaises(ToolExecutionError) as context:
             self.tool.handler(self.event, {}, self.mock_workspace)
 
         # Verify the error message
-        self.assertIn("Failed to publish item to workspace", str(context.exception))
+        self.assertIn("Failed to create item in workspace", str(context.exception))
 
     @patch("aws.osml.geoagents.workspace.load_tool.secrets")
     def test_handler_without_dataset_name(self, mock_secrets):
@@ -158,9 +158,9 @@ class TestLoadTool(unittest.TestCase):
         self.mock_workspace.s3_client = Mock()
         self.mock_workspace.s3_transfer_config = {}
 
-        # Mock the publish_item to return a georeference
+        # Mock the create_item to return a georeference
         mock_georef = Georeference.from_parts(item_id="abcd1234")
-        self.mock_workspace.publish_item = Mock(return_value=mock_georef)
+        self.mock_workspace.create_item = Mock(return_value=mock_georef)
 
         # Call the handler
         result = self.tool.handler(event_no_name, {}, self.mock_workspace)
@@ -168,8 +168,8 @@ class TestLoadTool(unittest.TestCase):
         # Verify the result
         self.assertIn("Successfully loaded dataset", str(result))
 
-        # Verify publish_item was called with the basename as the title
-        call_args = self.mock_workspace.publish_item.call_args
+        # Verify create_item was called with the basename as the title
+        call_args = self.mock_workspace.create_item.call_args
         item = call_args[1]["item"]
         self.assertEqual(item.properties.get("title"), "test-key.tif")
 
@@ -192,9 +192,9 @@ class TestLoadTool(unittest.TestCase):
         self.mock_workspace.s3_client = Mock()
         self.mock_workspace.s3_transfer_config = {}
 
-        # Mock the publish_item to return a georeference
+        # Mock the create_item to return a georeference
         mock_georef = Georeference.from_parts(item_id="abcd1234")
-        self.mock_workspace.publish_item = Mock(return_value=mock_georef)
+        self.mock_workspace.create_item = Mock(return_value=mock_georef)
 
         # Call the handler
         self.tool.handler(self.event, {}, self.mock_workspace)
@@ -222,8 +222,8 @@ class TestLoadTool(unittest.TestCase):
         self.mock_workspace.s3_client = Mock()
         self.mock_workspace.s3_transfer_config = {}
 
-        # Mock the publish_item to raise an exception
-        self.mock_workspace.publish_item = Mock(side_effect=Exception("Publish failed"))
+        # Mock the create_item to raise an exception
+        self.mock_workspace.create_item = Mock(side_effect=Exception("Create failed"))
 
         # Call the handler and expect an exception
         with self.assertRaises(ToolExecutionError):

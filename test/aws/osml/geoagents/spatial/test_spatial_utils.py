@@ -2,8 +2,7 @@
 
 import unittest
 from datetime import datetime
-from pathlib import Path
-from unittest.mock import Mock, mock_open, patch
+from unittest.mock import Mock
 
 import geopandas as gpd
 import shapely
@@ -14,10 +13,7 @@ from aws.osml.geoagents.common import Georeference
 from aws.osml.geoagents.spatial.spatial_utils import (
     create_derived_stac_item,
     create_length_limited_wkt,
-    is_parquet_file,
-    read_field_descriptions_from_parquet,
-    read_geo_data_frame,
-    write_geo_data_frame,
+    validate_dataset_crs,
 )
 
 
@@ -26,84 +22,48 @@ class TestSpatialUtils(unittest.TestCase):
         # Create sample GeoDataFrame for testing
         self.sample_gdf = gpd.GeoDataFrame({"geometry": [Point(0, 0), Point(1, 1)], "data": [1, 2]})
 
-    def test_is_parquet_file_true(self):
-        # Test with valid Parquet file
-        with patch("builtins.open", mock_open(read_data=b"PAR1")):
-            result = is_parquet_file(Path("test.parquet"))
-            self.assertTrue(result)
+    def test_validate_dataset_crs_none(self):
+        """Test validating a dataset with no CRS."""
+        # Create a GeoDataFrame with no CRS
+        gdf = self.sample_gdf.copy()
+        gdf.crs = None
 
-    def test_is_parquet_file_false(self):
-        # Test with non-Parquet file
-        with patch("builtins.open", mock_open(read_data=b"NOT1")):
-            result = is_parquet_file(Path("test.txt"))
-            self.assertFalse(result)
+        # Create a mock georeference
+        georef = Mock(spec=Georeference)
 
-    def test_is_parquet_file_error(self):
-        # Test with file open error
-        with patch("builtins.open", side_effect=Exception):
-            result = is_parquet_file(Path("nonexistent.parquet"))
-            self.assertFalse(result)
+        # Call the function
+        validate_dataset_crs(gdf, georef)
 
-    @patch("pyarrow.parquet.read_table")
-    def test_read_field_descriptions_from_parquet(self, mock_read_table):
-        # Mock the schema with field metadata
-        mock_schema = Mock()
-        mock_field = Mock()
-        mock_field.metadata = {b"comment": b"Test description"}
-        mock_schema.names = ["test_field"]
-        mock_schema.field.return_value = mock_field
-        mock_read_table.return_value.schema = mock_schema
+        # Check that the CRS was set to EPSG:4326
+        self.assertEqual(gdf.crs, "EPSG:4326")
 
-        result = read_field_descriptions_from_parquet(Path("test.parquet"))
+    def test_validate_dataset_crs_valid(self):
+        """Test validating a dataset with a valid CRS."""
+        # Create a GeoDataFrame with EPSG:4326 CRS
+        gdf = self.sample_gdf.copy()
+        gdf.set_crs("EPSG:4326", inplace=True)
 
-        self.assertEqual(result, {"test_field": "Test description"})
-        mock_read_table.assert_called_once()
-        mock_schema.field.assert_called_once_with("test_field")
+        # Create a mock georeference
+        georef = Mock(spec=Georeference)
 
-    @patch("geopandas.read_parquet")
-    @patch("aws.osml.geoagents.spatial.spatial_utils.read_field_descriptions_from_parquet")
-    def test_read_geo_data_frame_parquet(self, mock_read_descriptions, mock_read_parquet):
-        # Create sample GeoDataFrame with column descriptions
-        sample_gdf = self.sample_gdf.copy()
-        column_descriptions = {"data": "Test column description"}
+        # Call the function
+        validate_dataset_crs(gdf, georef)
 
-        mock_read_parquet.return_value = sample_gdf
-        mock_read_descriptions.return_value = column_descriptions
+        # Check that the CRS is still EPSG:4326
+        self.assertEqual(gdf.crs, "EPSG:4326")
 
-        with patch("aws.osml.geoagents.spatial.spatial_utils.is_parquet_file", return_value=True):
-            result = read_geo_data_frame(Path("test.parquet"))
+    def test_validate_dataset_crs_invalid(self):
+        """Test validating a dataset with an invalid CRS."""
+        # Create a GeoDataFrame with a different CRS
+        gdf = self.sample_gdf.copy()
+        gdf.set_crs("EPSG:3857", inplace=True)
 
-            self.assertIsInstance(result, gpd.GeoDataFrame)
-            self.assertEqual(result.attrs.get("column-descriptions"), column_descriptions)
-            mock_read_parquet.assert_called_once()
-            mock_read_descriptions.assert_called_once()
+        # Create a mock georeference
+        georef = Mock(spec=Georeference)
 
-    @patch("geopandas.GeoDataFrame.from_file")
-    def test_read_geo_data_frame_non_parquet(self, mock_from_file):
-        mock_from_file.return_value = self.sample_gdf
-
-        with patch("aws.osml.geoagents.spatial.spatial_utils.is_parquet_file", return_value=False):
-            result = read_geo_data_frame(Path("test.shp"))
-            self.assertIsInstance(result, gpd.GeoDataFrame)
-            mock_from_file.assert_called_once()
-
-    @patch("geopandas.read_parquet")
-    def test_read_geo_data_frame_error(self, mock_read_parquet):
-        mock_read_parquet.side_effect = Exception("Read error")
-
-        with patch("aws.osml.geoagents.spatial.spatial_utils.is_parquet_file", return_value=True):
-            with self.assertRaises(ValueError):
-                read_geo_data_frame(Path("test.parquet"))
-
-    def test_write_geo_data_frame(self):
-        test_path = Path("test/output.parquet")
-
-        with patch("pathlib.Path.mkdir") as mock_mkdir:
-            with patch.object(self.sample_gdf, "to_parquet") as mock_to_parquet:
-                write_geo_data_frame(test_path, self.sample_gdf)
-
-                mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
-                mock_to_parquet.assert_called_once_with(test_path)
+        # Call the function and check that it raises a ValueError
+        with self.assertRaises(ValueError):
+            validate_dataset_crs(gdf, georef)
 
     def test_create_derived_stac_item(self):
         # Create mock original item

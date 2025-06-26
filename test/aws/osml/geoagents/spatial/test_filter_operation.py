@@ -29,12 +29,8 @@ class TestFilterOperation(unittest.TestCase):
         self.filter_bounds = shapely.Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)])
 
     @patch("aws.osml.geoagents.spatial.filter_operation.LocalAssets")
-    @patch("aws.osml.geoagents.spatial.filter_operation.read_geo_data_frame")
-    @patch("aws.osml.geoagents.spatial.filter_operation.write_geo_data_frame")
     @patch("aws.osml.geoagents.spatial.filter_operation.create_derived_stac_item")
-    def test_filter_operation_successful(
-        self, mock_create_derived_stac_item, mock_write_geo_data_frame, mock_read_geo_data_frame, mock_local_assets
-    ):
+    def test_filter_operation_successful(self, mock_create_derived_stac_item, mock_local_assets):
         """Test successful filtering of features."""
         # Set up mock for LocalAssets context manager
         mock_item = Mock(spec=Item)
@@ -56,7 +52,7 @@ class TestFilterOperation(unittest.TestCase):
         mock_gdf["intersects_result"] = [True, False, True]
         mock_gdf.intersects = Mock(return_value=mock_gdf["intersects_result"])
 
-        mock_read_geo_data_frame.return_value = mock_gdf
+        self.mock_workspace.read_geo_data_frame.return_value = mock_gdf
 
         # Set up mock for create_derived_stac_item
         mock_derived_item = Mock(spec=Item)
@@ -76,10 +72,10 @@ class TestFilterOperation(unittest.TestCase):
 
         # Verify the mocks were called
         mock_local_assets.assert_called_once()
-        mock_read_geo_data_frame.assert_called_once()
-        mock_write_geo_data_frame.assert_called_once()
+        self.mock_workspace.read_geo_data_frame.assert_called_once()
+        self.mock_workspace.write_geo_data_frame.assert_called_once()
         mock_create_derived_stac_item.assert_called_once()
-        self.mock_workspace.publish_item.assert_called_once()
+        self.mock_workspace.create_item.assert_called_once()
 
 
 if __name__ == "__main__":

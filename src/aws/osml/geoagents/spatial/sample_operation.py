@@ -4,7 +4,6 @@ import logging
 from typing import Optional
 
 from ..common import Georeference, LocalAssets, Workspace
-from .spatial_utils import read_geo_data_frame
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ def sample_operation(dataset_georef: Georeference, number_of_features: Optional[
             # Select the assets to process and load them into memory
             selected_asset_key = next(iter(local_asset_paths))
             local_dataset_path = local_asset_paths[selected_asset_key]
-            gdf = read_geo_data_frame(local_dataset_path)
+            gdf = workspace.read_geo_data_frame(str(local_dataset_path))
 
             # Get the requested number of features
             sampled_gdf = gdf.head(num_features)

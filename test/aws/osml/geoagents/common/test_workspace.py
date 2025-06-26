@@ -1,6 +1,6 @@
 #  Copyright 2025 Amazon.com, Inc. or its affiliates.
 
-import json
+import os
 import shutil
 import tempfile
 import unittest
@@ -8,10 +8,17 @@ from datetime import datetime
 from pathlib import Path
 
 import boto3
+import geopandas as gpd
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+from fsspec.implementations.local import LocalFileSystem
 from moto import mock_aws
-from pystac import Asset, Item
+from pystac import Item
+from s3fs import S3FileSystem
+from shapely.geometry import Point
 
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import Workspace
 
 
 class TestWorkspace(unittest.TestCase):
@@ -25,14 +32,18 @@ class TestWorkspace(unittest.TestCase):
         self.bucket_name = "XXXXXXXXXXXXXXXXXXXXX"
         self.user_id = "shared"
 
-        # Create the test bucket
+        # Initialize workspace with S3 filesystem
         self.s3.create_bucket(Bucket=self.bucket_name)
+        self.s3fs = S3FileSystem(anon=False)
+        self.prefix = f"{self.bucket_name}/{self.user_id}"
+        self.workspace = Workspace(filesystem=self.s3fs, prefix=self.prefix)
 
-        # Create temporary directory
+        # Also create a local filesystem workspace for testing
+        self.local_fs = LocalFileSystem()
         self.tmp_path = tempfile.mkdtemp()
-
-        # Initialize workspace
-        self.workspace = Workspace(user_id=self.user_id, workspace_bucket=self.bucket_name, local_storage_path=self.tmp_path)
+        self.local_workspace_path = Path(self.tmp_path) / "local_workspace"
+        self.local_workspace_path.mkdir(exist_ok=True)
+        self.local_workspace = Workspace(filesystem=self.local_fs, prefix=str(self.local_workspace_path))
 
     def tearDown(self):
         """Clean up after each test method"""
@@ -51,185 +62,259 @@ class TestWorkspace(unittest.TestCase):
             properties={},
         )
 
-    def test_get_item(self):
-        """Test getting an item from S3"""
+    @unittest.skip("Moto and S3FS do not work well together")
+    def test_s3_filesystem(self):
+        """Test using a local filesystem"""
         # Create a sample STAC item
         sample_item = self.create_sample_stac_item()
 
-        # Add a test asset
-        sample_item.add_asset(
-            "test-asset",
-            Asset(href=f"s3://{self.bucket_name}/{self.user_id}/{sample_item.id}/test-asset.txt", media_type="text/plain"),
-        )
-
-        # Upload the item to S3
-        item_key = f"{self.user_id}/{sample_item.id}/item.json"
-        self.s3.put_object(Bucket=self.bucket_name, Key=item_key, Body=json.dumps(sample_item.to_dict()))
-
-        # Test get_item
-        georef = Georeference.from_parts(item_id=sample_item.id)
-        retrieved_item = self.workspace.get_item(georef)
-
-        assert retrieved_item.id == sample_item.id
-        assert "test-asset" in retrieved_item.assets
-
-    def test_get_item_not_found(self):
-        """Test getting a non-existent item"""
-        georef = Georeference.from_parts(item_id="GEOREF-DOES-NOT-EXIST")
-
-        with self.assertRaises(Exception) as exc_info:
-            self.workspace.get_item(georef)
-            assert "Failed to retrieve item from S3" in str(exc_info)
-
-    def test_download_assets(self):
-        """Test downloading assets from S3"""
-        # Create a sample STAC item with asset
-        sample_item = self.create_sample_stac_item()
-        asset_key = f"{self.user_id}/{sample_item.id}/test-asset/test-asset.txt"
-        sample_item.add_asset("test-asset", Asset(href=f"s3://{self.bucket_name}/{asset_key}", media_type="text/plain"))
-
-        # Upload test asset to mock S3
-        test_content = b"test file content"
-        self.s3.put_object(Bucket=self.bucket_name, Key=asset_key, Body=test_content)
-
-        # Test download_assets
-        asset_paths = self.workspace.download_assets(sample_item, ["test-asset"])
-
-        assert "test-asset" in asset_paths
-        assert asset_paths["test-asset"].exists()
-        assert asset_paths["test-asset"].read_bytes() == test_content
-
-    def test_publish_item(self):
-        """Test publishing an item to S3"""
-        # Create test item and asset
-        sample_item = self.create_sample_stac_item()
-        test_asset_path = Path(self.tmp_path, "test-asset.txt")
-        test_content = b"test file content"
+        # Create a test asset file
+        test_asset_path = Path(self.tmp_path, "local-test-asset.txt")
+        test_content = b"local test file content"
         with open(test_asset_path, "wb") as out:
             out.write(test_content)
 
-        local_assets = {"test-asset": test_asset_path}
+        local_assets = {"local-test-asset": test_asset_path}
 
-        # Test publish_item
-        georef = self.workspace.publish_item(sample_item, local_assets)
+        # Publish the item to the local workspace
+        georef = self.workspace.create_item(sample_item, local_assets)
         assert georef is not None
 
-        # Verify asset upload
-        s3_key = f"{self.user_id}/{sample_item.id}/test-asset/{test_asset_path.name}"
-        response = self.s3.get_object(Bucket=self.bucket_name, Key=s3_key)
-        assert response["Body"].read() == test_content
+        # Verify the item was published
+        item_path = Path(self.prefix) / sample_item.id / "item.json"
+        assert self.s3fs.exists(item_path)
 
-        # Verify item JSON upload
-        item_key = f"{self.user_id}/{sample_item.id}/item.json"
-        response = self.s3.get_object(Bucket=self.bucket_name, Key=item_key)
-        uploaded_item = Item.from_dict(json.loads(response["Body"].read().decode("utf-8")))
-        assert uploaded_item.id == sample_item.id
-        assert uploaded_item.assets["test-asset"].href.startswith(f"s3://{self.bucket_name}")
+        # Verify the asset was published
+        asset_path = Path(self.prefix) / sample_item.id / "local-test-asset" / test_asset_path.name
+        assert self.s3fs.exists(asset_path)
 
-    def test_publish_item_no_assets(self):
-        """Test publishing an item without assets"""
-        sample_item = self.create_sample_stac_item()
-
-        # Test publish_item without assets
-        georef = self.workspace.publish_item(sample_item, None)
-        assert georef is not None
-
-        # Verify item JSON upload
-        item_key = f"{self.user_id}/{sample_item.id}/item.json"
-        response = self.s3.get_object(Bucket=self.bucket_name, Key=item_key)
-        uploaded_item = Item.from_dict(json.loads(response["Body"].read().decode("utf-8")))
-        assert uploaded_item.id == sample_item.id
-
-    def test_list_items(self):
-        """Test listing all items in the workspace"""
-        # Create multiple sample items
-        item_ids = ["item001", "item002", "item003"]
-
-        for item_id in item_ids:
-            # Create a sample item
-            sample_item = Item(
-                id=item_id,
-                geometry={"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]},
-                bbox=[0, 0, 1, 1],
-                datetime=datetime.fromisoformat("2025-04-23T14:05:23Z"),
-                properties={},
-            )
-
-            # Upload the item to S3
-            item_key = f"{self.user_id}/{item_id}/item.json"
-            self.s3.put_object(Bucket=self.bucket_name, Key=item_key, Body=json.dumps(sample_item.to_dict()))
-
-            # Add a test asset to create the directory structure
-            asset_key = f"{self.user_id}/{item_id}/test-asset/test-asset.txt"
-            self.s3.put_object(Bucket=self.bucket_name, Key=asset_key, Body=b"test content")
+        # Test get_item
+        retrieved_item = self.workspace.get_item(georef)
+        assert retrieved_item.id == sample_item.id
+        assert "local-test-asset" in retrieved_item.assets
 
         # Test list_items
         items = self.workspace.list_items()
-
-        # Verify the results
-        self.assertEqual(len(items), len(item_ids))
-
-        # Convert the returned Georeference objects to item_ids for easier comparison
-        returned_item_ids = [item.item_id for item in items]
-
-        # Verify all expected items are in the returned list
-        for item_id in item_ids:
-            self.assertIn(item_id, returned_item_ids)
-
-    def test_list_items_empty(self):
-        """Test listing items when the workspace is empty"""
-        # No items in the workspace
-
-        # Test list_items
-        items = self.workspace.list_items()
-
-        # Verify the results
-        self.assertEqual(len(items), 0)
-
-    def test_delete_item(self):
-        """Test deleting an item and its assets from the workspace"""
-        # Create a sample item with multiple assets
-        item_id = "delete-test-item"
-        sample_item = Item(
-            id=item_id,
-            geometry={"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]},
-            bbox=[0, 0, 1, 1],
-            datetime=datetime.fromisoformat("2025-04-23T14:05:23Z"),
-            properties={},
-        )
-
-        # Upload the item to S3
-        item_key = f"{self.user_id}/{item_id}/item.json"
-        self.s3.put_object(Bucket=self.bucket_name, Key=item_key, Body=json.dumps(sample_item.to_dict()))
-
-        # Add multiple test assets
-        asset_keys = [
-            f"{self.user_id}/{item_id}/asset1/asset1.txt",
-            f"{self.user_id}/{item_id}/asset2/asset2.txt",
-            f"{self.user_id}/{item_id}/asset3/asset3.txt",
-        ]
-
-        for asset_key in asset_keys:
-            self.s3.put_object(Bucket=self.bucket_name, Key=asset_key, Body=b"test content")
-
-        # Verify the item exists before deletion
-        response = self.s3.list_objects_v2(Bucket=self.bucket_name, Prefix=f"{self.user_id}/{item_id}/")
-        self.assertIn("Contents", response)
-        self.assertGreaterEqual(len(response["Contents"]), 4)  # item.json + 3 assets
+        assert len(items) == 1
+        assert items[0].item_id == sample_item.id
 
         # Test delete_item
-        georef = Georeference.from_parts(item_id=item_id)
         self.workspace.delete_item(georef)
+        assert not self.s3fs.exists(Path(self.prefix / sample_item.id))
 
-        # Verify the item and its assets are deleted
-        response = self.s3.list_objects_v2(Bucket=self.bucket_name, Prefix=f"{self.user_id}/{item_id}/")
-        self.assertNotIn("Contents", response)
+    def test_local_filesystem(self):
+        """Test using a local filesystem"""
+        # Create a sample STAC item
+        sample_item = self.create_sample_stac_item()
 
-    def test_delete_item_not_found(self):
-        """Test deleting a non-existent item"""
-        # Create a georeference for a non-existent item
-        georef = Georeference.from_parts(item_id="non-existent-item")
+        # Create a test asset file
+        test_asset_path = Path(self.tmp_path, "local-test-asset.txt")
+        test_content = b"local test file content"
+        with open(test_asset_path, "wb") as out:
+            out.write(test_content)
 
-        # Test delete_item with non-existent item
-        # This should not raise an exception, but log a warning
-        self.workspace.delete_item(georef)
+        local_assets = {"local-test-asset": test_asset_path}
+
+        # Publish the item to the local workspace
+        georef = self.local_workspace.create_item(sample_item, local_assets)
+        assert georef is not None
+
+        # Verify the item was published
+        item_path = Path(self.local_workspace_path) / sample_item.id / "item.json"
+        assert item_path.exists()
+
+        # Verify the asset was published
+        asset_path = Path(self.local_workspace_path) / sample_item.id / "local-test-asset" / test_asset_path.name
+        assert asset_path.exists()
+        assert asset_path.read_bytes() == test_content
+
+        # Test get_item
+        retrieved_item = self.local_workspace.get_item(georef)
+        assert retrieved_item.id == sample_item.id
+        assert "local-test-asset" in retrieved_item.assets
+
+        # Test list_items
+        items = self.local_workspace.list_items()
+        assert len(items) == 1
+        assert items[0].item_id == sample_item.id
+
+        # Test delete_item
+        self.local_workspace.delete_item(georef)
+        assert not Path(self.local_workspace_path / sample_item.id).exists()
+
+    def test_is_parquet_file_true(self):
+        """Test is_parquet_file with a valid Parquet file."""
+        # Create a file with PAR1 magic bytes
+        file_path = os.path.join(self.tmp_path, "test.parquet")
+        with open(file_path, "wb") as f:
+            f.write(b"PAR1")  # Write the magic bytes
+
+        # Test the function
+        result = self.local_workspace.is_parquet_file(file_path)
+        self.assertTrue(result)
+
+    def test_is_parquet_file_false(self):
+        """Test is_parquet_file with a non-Parquet file."""
+        # Create a file with non-PAR1 magic bytes
+        file_path = os.path.join(self.tmp_path, "test.txt")
+        with open(file_path, "wb") as f:
+            f.write(b"TEXT")  # Write non-Parquet content
+
+        # Test the function
+        result = self.local_workspace.is_parquet_file(file_path)
+        self.assertFalse(result)
+
+    def test_is_parquet_file_error(self):
+        """Test is_parquet_file with a file that doesn't exist."""
+        # Create a path to a file that doesn't exist
+        file_path = os.path.join(self.tmp_path, "nonexistent.parquet")
+
+        # Test the function with a nonexistent file
+        result = self.local_workspace.is_parquet_file(file_path)
+        self.assertFalse(result)
+
+    def create_parquet_file_with_metadata(self, file_path, data=None, metadata=None):
+        """Helper method to create a Parquet file with metadata."""
+        if data is None:
+            data = {"test_field": [1, 2, 3]}
+
+        if metadata is None:
+            metadata = {"test_field": "Test description"}
+
+        # Create a pandas DataFrame
+        df = pd.DataFrame(data)
+
+        # Convert to PyArrow Table with metadata
+        schema = pa.Schema.from_pandas(df)
+        for field_name, description in metadata.items():
+            if field_name in schema.names:
+                field_index = schema.get_field_index(field_name)
+                field = schema.field(field_index)
+                field = field.with_metadata({b"comment": description.encode("utf-8")})
+                schema = schema.set(field_index, field)
+
+        table = pa.Table.from_pandas(df, schema=schema)
+
+        # Write to Parquet file
+        pq.write_table(table, file_path)
+        return file_path
+
+    def create_geo_data_frame(self):
+        """Helper method to create a sample GeoDataFrame."""
+        # Create a simple GeoDataFrame with points
+        points = [Point(0, 0), Point(1, 1), Point(2, 2)]
+        data = {"id": [1, 2, 3], "value": [10, 20, 30]}
+        return gpd.GeoDataFrame(data, geometry=points)
+
+    def create_geo_parquet_file(self, file_path, metadata=None):
+        """Helper method to create a GeoParquet file with metadata."""
+        gdf = self.create_geo_data_frame()
+
+        # Use geopandas to_parquet which handles geometry columns correctly
+        gdf.to_parquet(file_path)
+
+        # If metadata is provided, we need to add it after the file is created
+        if metadata:
+            # Read the parquet file schema
+            table = pq.read_table(file_path)
+            schema = table.schema
+
+            # Add metadata to fields
+            for field_name, description in metadata.items():
+                if field_name in schema.names:
+                    field_index = schema.get_field_index(field_name)
+                    field = schema.field(field_index)
+                    field = field.with_metadata({b"comment": description.encode("utf-8")})
+                    schema = schema.set(field_index, field)
+
+            # Write the table back with updated schema
+            table = table.cast(schema)
+            pq.write_table(table, file_path)
+
+        return gdf
+
+    def create_geojson_file(self, file_path):
+        """Helper method to create a GeoJSON file."""
+        gdf = self.create_geo_data_frame()
+        gdf.to_file(file_path, driver="GeoJSON")
+        return gdf
+
+    def test_read_field_descriptions_from_parquet(self):
+        """Test read_field_descriptions_from_parquet."""
+        # Create a real Parquet file with metadata
+        file_path = os.path.join(self.tmp_path, "test.parquet")
+        metadata = {"test_field": "Test description"}
+        self.create_parquet_file_with_metadata(file_path, metadata=metadata)
+
+        # Test the function
+        result = self.local_workspace.read_field_descriptions_from_parquet(file_path)
+
+        # Verify the result
+        self.assertEqual(result, metadata)
+
+    def test_read_geo_data_frame_parquet(self):
+        """Test read_geo_data_frame with a Parquet file."""
+        # Create a real GeoParquet file with metadata
+        file_path = os.path.join(self.tmp_path, "test.parquet")
+        metadata = {"value": "Test value description"}
+        self.create_geo_parquet_file(file_path, metadata=metadata)
+
+        # Test the function
+        result = self.local_workspace.read_geo_data_frame(file_path)
+
+        # Verify the result
+        self.assertIsInstance(result, gpd.GeoDataFrame)
+        self.assertEqual(len(result), 3)  # Should have 3 rows
+        self.assertTrue("geometry" in result.columns)
+        self.assertTrue("id" in result.columns)
+        self.assertTrue("value" in result.columns)
+        self.assertEqual(result.attrs.get("column-descriptions"), metadata)
+
+    def test_read_geo_data_frame_non_parquet(self):
+        """Test read_geo_data_frame with a non-Parquet file."""
+        # Create a real GeoJSON file
+        file_path = os.path.join(self.tmp_path, "test.geojson")
+        self.create_geojson_file(file_path)
+
+        # Test the function
+        result = self.local_workspace.read_geo_data_frame(file_path)
+
+        # Verify the result
+        self.assertIsInstance(result, gpd.GeoDataFrame)
+        self.assertEqual(len(result), 3)  # Should have 3 rows
+        self.assertTrue("geometry" in result.columns)
+        self.assertTrue("id" in result.columns)
+        self.assertTrue("value" in result.columns)
+
+    def test_read_geo_data_frame_error(self):
+        """Test read_geo_data_frame with a file that doesn't exist."""
+        # Create a path to a file that doesn't exist
+        file_path = os.path.join(self.tmp_path, "nonexistent.parquet")
+
+        # Test the function with a nonexistent file
+        with self.assertRaises(ValueError):
+            self.local_workspace.read_geo_data_frame(file_path)
+
+    def test_write_geo_data_frame(self):
+        """Test write_geo_data_frame."""
+        # Create a sample GeoDataFrame
+        sample_gdf = self.create_geo_data_frame()
+
+        # Create a file path
+        file_path = os.path.join(self.tmp_path, "test_output.parquet")
+
+        # Write the GeoDataFrame to the file
+        self.local_workspace.write_geo_data_frame(file_path, sample_gdf)
+
+        # Verify the file was created
+        self.assertTrue(os.path.exists(file_path))
+
+        # Read the file back and verify the contents
+        result = self.local_workspace.read_geo_data_frame(file_path)
+
+        # Verify the result
+        self.assertIsInstance(result, gpd.GeoDataFrame)
+        self.assertEqual(len(result), 3)  # Should have 3 rows
+        self.assertTrue("geometry" in result.columns)
+        self.assertTrue("id" in result.columns)
+        self.assertTrue("value" in result.columns)

@@ -5,10 +5,9 @@ import logging
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Set
-from urllib.parse import urlparse
 
-import boto3
-from boto3.s3.transfer import TransferConfig
+import geopandas as gpd
+import pyarrow.parquet as pq
 from pystac import Asset, Item
 
 from aws.osml.geoagents.common.georeference import Georeference
@@ -18,145 +17,77 @@ logger = logging.getLogger(__name__)
 
 class Workspace:
     """
-    A workspace that manages STAC items and their local cached assets.
+    A workspace that manages STAC items and their assets.
 
-    This implementation works directly with S3 without benefit of a catalog or index. It is
-    intended to provide a bare minimum level of functionality for the early stages of the
+    This implementation works with any fsspec-compatible filesystem, including local file systems
+    and S3. It provides a bare minimum level of functionality for the early stages of the
     geoagent development work. Eventually it will be replaced with an interface to a more
-    full-featured workspace that allows search through integration with an actual STAC
-    service.
+    full-featured workspace that allows search through integration with an actual STAC service.
     """
 
-    def __init__(self, user_id: str, workspace_bucket: str, local_storage_path: Path | str):
+    def __init__(self, filesystem, prefix: str):
         """
-        Construct a new workspace that can be used to manage content stored in S3 and a
-        ephemeral cache on a local disk volume.
+        Construct a new workspace that can be used to manage content stored in any filesystem.
 
-        :param user_id: the id of the user or team that owns this logical workspace
-        :param workspace_bucket: the name of the S3 bucket providing permanent storage for items
-        :param local_storage_path: the local disk volume to cache items
+        :param filesystem: A fsspec filesystem object (S3FileSystem, LocalFileSystem, etc.)
+        :param prefix: Path prefix identifying the workspace location in relation to the filesystem root
         """
-        self.user_id = user_id
-        # TODO: Remove this "shared" override. It is only being used for testing until we can
-        #       implement functions to properly load content to the workspace.
-        logger.warning("DANGER: All workspace items are currently shared!")
-        self.user_id = "shared"
-        self.workspace_bucket = workspace_bucket
-        self.session_local_path = Path(local_storage_path, self.user_id)
-        self.session_local_path.mkdir(parents=True, exist_ok=True)
+        self.filesystem = filesystem
+        self.prefix = prefix.rstrip("/")
 
-        self.s3_client = boto3.client("s3")
-        self.s3_transfer_config = TransferConfig(
-            multipart_threshold=8 * 1024 * 1024,
-            max_concurrency=10,
-            multipart_chunksize=8 * 1024 * 1024,
-            use_threads=True,  # 8MB  # 8MB
-        )
+        # For backward compatibility, extract user_id from prefix if it's the last component
+        self.user_id = os.path.basename(self.prefix) if self.prefix else "shared"
 
     def get_item(self, georef: Georeference) -> Item:
         """
         This method returns the STAC Item (summary information) for a georeference.
-        It currently retrieves this item directly from S3 but eventually should likely
+        It retrieves this item directly from the filesystem but eventually should likely
         look the item up in the index for the STAC.
 
         :param georef: the geo reference to retrieve
         :return: the STAC item
         """
-        # Construct the S3 key for the item JSON
-        item_key = f"{self.user_id}/{georef.item_id}/item.json"
+        # Construct the path for the item JSON
+        item_path = f"{self.prefix}/{georef.item_id}/item.json"
 
         try:
-            # Get the item JSON from S3
-            response = self.s3_client.get_object(Bucket=self.workspace_bucket, Key=item_key)
-
-            # Parse the JSON content and create a STAC item
-            item_data = json.loads(response["Body"].read().decode("utf-8"))
-            return Item.from_dict(item_data)
+            # Get the item JSON from the filesystem
+            with self.filesystem.open(item_path, "rb") as f:
+                item_data = json.loads(f.read().decode("utf-8"))
+                return Item.from_dict(item_data)
         except Exception as e:
-            raise Exception(f"Failed to retrieve item from S3: {str(e)}") from e
-
-    def download_assets(self, item: Item, selected_asset_keys: Optional[List[str]]) -> Dict[str, Path]:
-        """
-        Download assets from the item from the workspace storage and cache them on
-        the local ephemeral disk.
-
-        :param item: the STAC item with assets to download
-        :param selected_asset_keys: an optional list of asset keys to download
-        :return: a map between asset keys and their path on the local disk
-        """
-        if not item:
-            raise ValueError("item can not be None.")
-
-        asset_paths = {}
-
-        # Filter assets if selected_asset_keys is provided
-        assets_to_download = item.assets
-        if selected_asset_keys:
-            assets_to_download = {k: v for k, v in item.assets.items() if k in selected_asset_keys}
-
-        for asset_key, asset in assets_to_download.items():
-            # Parse the S3 URL for the asset, the assumption is that these are not generic
-            # STAC items but instead just catalog entries for data stored in the S3 bucket
-            # controlled by this workspace.
-            parsed_url = urlparse(asset.href)
-            if parsed_url.scheme != "s3":
-                raise ValueError(f"Asset {asset_key} href is not an S3 URL: {asset.href}")
-            bucket_name = parsed_url.netloc
-            key = parsed_url.path.lstrip("/")
-
-            # Ensure the local directory to store the assets exists and build a local file
-            # path for the asset.
-            asset_dir = self.session_local_path / asset_key
-            asset_dir.mkdir(parents=True, exist_ok=True)
-            local_path = Path(asset_dir, os.path.basename(key))
-
-            # If the file hasn't already been downloaded pull it from S3 using the transfer
-            # manager. The transfer manager uses multiple threads and takes advantage of
-            # multipart downloads so this should be efficient for even large assets.
-            if not local_path.exists():
-                try:
-                    self.s3_client.download_file(
-                        Bucket=bucket_name,
-                        Key=key,
-                        Filename=str(local_path.absolute()),
-                        Config=self.s3_transfer_config,
-                        Callback=lambda bytes_transferred: logger.info(
-                            f"Downloading {asset_key}: {bytes_transferred} bytes transferred"
-                        ),
-                    )
-                    logger.info(f"Completed downloading {asset_key}")
-                except Exception as e:
-                    logger.warning(f"Error downloading {asset_key}: {str(e)}")
-                    if local_path.exists():
-                        local_path.unlink()  # Remove partially downloaded file
-                    continue
-
-            asset_paths[asset_key] = local_path
-
-        return asset_paths
+            raise Exception(f"Failed to retrieve item from filesystem: {str(e)}") from e
 
     def list_items(self) -> List[Georeference]:
         """
-        List all items in the workspace for the current user.
+        List all items in the workspace.
 
         :return: a list of Georeference objects for each item
         """
-        # List objects in the S3 bucket with the prefix for this user
-        prefix = f"{self.user_id}/"
-
         try:
-            # Use S3 list_objects_v2 to get all objects with the user's prefix
-            paginator = self.s3_client.get_paginator("list_objects_v2")
+            # Use filesystem's ls method to list directories
             item_ids: Set[str] = set()
 
-            # Iterate through pages of results
-            for page in paginator.paginate(Bucket=self.workspace_bucket, Prefix=prefix, Delimiter="/"):
-                if "CommonPrefixes" in page:
-                    for common_prefix in page["CommonPrefixes"]:
-                        # Extract the item ID from the prefix (format: user_id/item_id/)
-                        prefix_parts = common_prefix["Prefix"].split("/")
-                        if len(prefix_parts) >= 2:
-                            item_ids.add(prefix_parts[1])
+            # List all directories at the prefix level
+            try:
+                # Get all directories at the prefix level
+                dirs = self.filesystem.ls(self.prefix, detail=True)
+
+                # Filter for directories only
+                dirs = [d for d in dirs if d.get("type", None) == "directory"]
+
+                for directory in dirs:
+                    # Extract the item ID from the path
+                    dir_path = directory["name"]
+                    item_id = os.path.basename(dir_path.rstrip("/"))
+
+                    # Verify this is an item by checking for item.json
+                    item_json_path = f"{dir_path}/item.json"
+                    if self.filesystem.exists(item_json_path):
+                        item_ids.add(item_id)
+            except FileNotFoundError:
+                # If the prefix doesn't exist yet, return an empty list
+                pass
 
             # Create Georeference objects for each item ID
             return [Georeference.from_parts(item_id=item_id) for item_id in item_ids]
@@ -171,87 +102,162 @@ class Workspace:
         :param georef: the georeference of the item to delete
         :raises Exception: if the item cannot be deleted
         """
-        # Delete the item and its assets from S3
-        prefix = f"{self.user_id}/{georef.item_id}/"
+        # Delete the item and its assets from the filesystem
+        item_path = f"{self.prefix}/{georef.item_id}"
 
         try:
-            # List all objects with this prefix
-            paginator = self.s3_client.get_paginator("list_objects_v2")
-            objects_to_delete = []
-
-            for page in paginator.paginate(Bucket=self.workspace_bucket, Prefix=prefix):
-                if "Contents" in page:
-                    for obj in page["Contents"]:
-                        objects_to_delete.append({"Key": obj["Key"]})
-
-            if objects_to_delete:
-                # Delete the objects
-                self.s3_client.delete_objects(Bucket=self.workspace_bucket, Delete={"Objects": objects_to_delete})
-                logger.info(f"Deleted {len(objects_to_delete)} objects for item {georef}")
+            # Check if the item exists
+            if self.filesystem.exists(item_path):
+                # Use recursive delete to remove the item directory and all contents
+                self.filesystem.rm(item_path, recursive=True)
+                logger.info(f"Deleted item {georef}")
             else:
                 logger.warning(f"No objects found for item {georef}")
         except Exception as e:
             logger.warning(f"Error deleting item {georef}: {str(e)}")
             raise Exception(f"Failed to delete item {georef}: {str(e)}")
 
-    def publish_item(self, item: Item, local_assets: Optional[Dict[str, Path]]) -> Georeference:
+    def create_item(self, item: Item, temp_assets: Optional[Dict[str, Path]]) -> Georeference:
         """
-        Publish an item/assets that only exist in the local ephemeral storage to the workspace.
-        The item itself does not need to have an array of assets defined. Instead, an optional dictionary that
-        maps asset keys to local paths will be used to create assets. Each local file will be transferred to the
-        S3 storage bucket for the workspace and then the STAC Item asset hrefs will be updated to point to those
-        S3 locations. After update the final STAC Item will also be persisted to S3 though this part should
-        eventually be replaced with code to publish the Item to a STAC index.
+        Create an item/assets in the workspace.
 
-        :param item: the STAC item to publish
-        :param local_assets: a mapping of asset keys to local files
+        The item itself does not need to have an array of assets defined. Instead, an optional dictionary that
+        maps asset keys to temporary paths will be used to create assets. Each temporary file will be transferred to the
+        filesystem for the workspace and then the STAC Item asset hrefs will be updated to point to those
+        locations.
+
+        :param item: the STAC item to create
+        :param temp_assets: a mapping of asset keys to local files
         :return: the georeference for the new item
         """
-        if local_assets:
-            for asset_key, local_path in local_assets.items():
+        # Determine the base path for this item
+        item_base_path = f"{self.prefix}/{item.id}"
+
+        if temp_assets:
+            for asset_key, local_path in temp_assets.items():
                 try:
-                    # Construct S3 key for the asset and upload the asset to the
-                    # workspace managed S3 bucket
-                    asset_s3_key = f"{self.user_id}/{item.id}/{asset_key}/{local_path.name}"
-                    self.s3_client.upload_file(
-                        Filename=str(local_path.absolute()),
-                        Bucket=self.workspace_bucket,
-                        Key=asset_s3_key,
-                        Config=self.s3_transfer_config,
-                        Callback=lambda bytes_transferred: logger.info(
-                            f"Uploading {asset_key}: {bytes_transferred} bytes transferred"
-                        ),
-                    )
+                    # Construct path for the asset in the filesystem
+                    asset_path = f"{item_base_path}/{asset_key}/{local_path.name}"
+
+                    # Make sure the directory exists
+                    self.filesystem.makedirs(os.path.dirname(asset_path), exist_ok=True)
+
+                    # Upload/copy the asset to the filesystem
+                    with open(local_path, "rb") as src:
+                        with self.filesystem.open(asset_path, "wb") as dst:
+                            dst.write(src.read())
+
                     logger.info(f"Completed uploading {asset_key}")
 
                     # Add a new asset to the STAC Item that has a href property
-                    # correctly set to point to the location of the asset in the
-                    # workspace managed S3 storage.
-                    # TODO: Consider adding support for other properties on the STAC Asset.
-                    #       The ability to set media type, title, description, etc. for
-                    #       individual assets might eventually become useful. It may be
-                    #       easiest to assume the item asset map already contains this
-                    #       information and then we would only need to update the href
-                    #       in this code.
-                    s3_url = f"s3://{self.workspace_bucket}/{asset_s3_key}"
-                    item.add_asset(asset_key, Asset(href=s3_url))
+                    # correctly set to point to the location of the asset in the filesystem
+                    # For S3 filesystem, use s3:// URL format
+                    if hasattr(self.filesystem, "protocol") and self.filesystem.protocol == "s3":
+                        # Extract bucket name from the filesystem if available
+                        bucket = getattr(self.filesystem, "bucket_name", None)
+                        if bucket:
+                            asset_url = f"s3://{bucket}/{asset_path}"
+                        else:
+                            # Fall back to relative path if bucket can't be determined
+                            asset_url = asset_path
+                    else:
+                        # For local filesystem, use relative path
+                        asset_url = asset_path
+
+                    item.add_asset(asset_key, Asset(href=asset_url))
 
                 except Exception as e:
                     logger.warning(f"Error uploading {asset_key}: {str(e)}")
                     raise Exception(f"Failed to upload asset {asset_key}: {str(e)}")
 
-        # Construct S3 key for the item JSON
-        item_s3_key = f"{self.user_id}/{item.id}/item.json"
+        # Construct path for the item JSON
+        item_json_path = f"{item_base_path}/item.json"
 
         # Convert item to JSON
         item_json = json.dumps(item.to_dict())
 
         try:
-            # Upload item JSON to S3
-            self.s3_client.put_object(Bucket=self.workspace_bucket, Key=item_s3_key, Body=item_json)
+            # Make sure the directory exists
+            self.filesystem.makedirs(os.path.dirname(item_json_path), exist_ok=True)
+
+            # Upload item JSON to the filesystem
+            with self.filesystem.open(item_json_path, "w") as f:
+                f.write(item_json)
         except Exception as e:
-            logger.warning(f"\nError uploading {item_s3_key}: {str(e)}")
+            logger.warning(f"\nError uploading {item_json_path}: {str(e)}")
             raise Exception(f"Failed to upload item JSON: {str(e)}")
 
         # Create and return Georeference
         return Georeference.from_parts(item_id=item.id)
+
+    def is_parquet_file(self, file_path: str) -> bool:
+        """
+        Check if a file is a Parquet file by reading the magic bytes at the beginning of the file.
+
+        :param file_path: Path to the file in the filesystem
+        :return: True if the file is a Parquet file, False otherwise
+        """
+        # Parquet files start with PAR1 magic bytes
+        try:
+            with self.filesystem.open(file_path, "rb") as f:
+                magic_bytes = f.read(4)
+                return magic_bytes == b"PAR1"
+        except Exception:
+            return False
+
+    def read_field_descriptions_from_parquet(self, file_path: str) -> dict[str, str]:
+        """
+        Read field descriptions from column metadata stored in a Parquet file.
+
+        :param file_path: Path to the Parquet file in the filesystem
+        :return: A dictionary of field names and their descriptions
+        """
+        result = {}
+        # Use pyarrow to read the schema from the parquet file
+        with self.filesystem.open(file_path, "rb") as f:
+            schema = pq.read_table(f).schema
+            for name in schema.names:
+                field = schema.field(name)
+                if field.metadata and b"comment" in field.metadata:
+                    result[name] = field.metadata[b"comment"].decode("utf-8")
+        return result
+
+    def read_geo_data_frame(self, file_path: str) -> gpd.GeoDataFrame:
+        """
+        Read a GeoDataFrame from a file in the workspace filesystem.
+
+        :param file_path: Path to the file in the filesystem
+        :raises ValueError: if the file can not be read
+        :return: the GeoDataFrame
+        """
+        try:
+            if self.is_parquet_file(file_path):
+                with self.filesystem.open(file_path, "rb") as f:
+                    gdf = gpd.read_parquet(f)
+
+                # Add column descriptions as attributes
+                gdf.attrs["column-descriptions"] = self.read_field_descriptions_from_parquet(file_path)
+            else:
+                with self.filesystem.open(file_path, "rb") as f:
+                    gdf = gpd.read_file(f)
+
+            if gdf is None:
+                raise ValueError(f"Unable to create GeoDataFrame from: {os.path.basename(file_path)}")
+
+            return gdf
+        except Exception as e:
+            logger.info(f"Unable to create GeoDataFrame from: {os.path.basename(file_path)}", e)
+            raise ValueError(f"Unable to create GeoDataFrame from: {os.path.basename(file_path)}")
+
+    def write_geo_data_frame(self, dataset_path: str, dataset_gdf: gpd.GeoDataFrame) -> None:
+        """
+        Write a GeoDataFrame as a parquet file in the workspace filesystem.
+
+        :param dataset_path: Path in the filesystem for the output file
+        :param dataset_gdf: the dataset to write
+        """
+        # Make sure the directory exists
+        self.filesystem.makedirs(os.path.dirname(dataset_path), exist_ok=True)
+
+        # Write the GeoDataFrame to parquet
+        dataset_gdf.to_parquet(dataset_path, filesystem=self.filesystem)

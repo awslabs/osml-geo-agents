@@ -2,10 +2,8 @@
 
 import logging
 from datetime import datetime
-from pathlib import Path
 
 import geopandas as gpd
-import pyarrow.parquet as pq
 import shapely
 from pystac import Item
 from shapely.geometry.base import BaseGeometry
@@ -13,76 +11,6 @@ from shapely.geometry.base import BaseGeometry
 from ..common import Georeference
 
 logger = logging.getLogger(__name__)
-
-
-def is_parquet_file(file_path: Path) -> bool:
-    """
-    Check if a file is a Parquet file by reading the magic bytes at the beginning of the file.
-
-    :param file_path: Path to the file to check
-    :return: True if the file is a Parquet file, False otherwise
-    """
-    # Parquet files start with PAR1 magic bytes
-    try:
-        with open(file_path, "rb") as f:
-            magic_bytes = f.read(4)
-            return magic_bytes == b"PAR1"
-    except Exception:
-        return False
-
-
-def read_field_descriptions_from_parquet(file_path: Path) -> dict[str, str]:
-    """
-    Read field descriptions from column metadata stored in a Parquet file.
-
-    :param file_path: Path to the Parquet file
-    :return: A dictionary of field names and their descriptions
-    """
-    result = {}
-    schema = pq.read_table(file_path).schema
-    for name in schema.names:
-        field = schema.field(name)
-        if field.metadata and b"comment" in field.metadata:
-            result[name] = field.metadata[b"comment"].decode("utf-8")
-    return result
-
-
-def read_geo_data_frame(file_path: Path) -> gpd.GeoDataFrame:
-    """
-    Read a GeoDataFrame from a file.
-
-    :param file_path: Path to the file to read
-    :raises ValueError: if the file can not be read
-    :return: the GeoDataFrame
-    """
-    # TODO: Dig into this and understand how GeoPandas normally handles multiple file formats.
-    #       Attempting to open a parquet file with .from_file results in a PROJ error.
-    #       It is unclear if that error is a problem in the dependencies/docker build or
-    #       if we need this level of checking to decide how to open different file formats.
-    try:
-        if is_parquet_file(file_path):
-            gdf = gpd.read_parquet(file_path)
-            gdf.attrs["column-descriptions"] = read_field_descriptions_from_parquet(file_path)
-        else:
-            gdf = gpd.GeoDataFrame.from_file(file_path)
-        if gdf is None:
-            raise ValueError(f"Unable to create GeoDataFrame from: {file_path.name}")
-
-        return gdf
-    except Exception as e:
-        logger.info(f"Unable to create GeoDataFrame from: {file_path.name}", e)
-        raise ValueError(f"Unable to create GeoDataFrame from: {file_path.name}")
-
-
-def write_geo_data_frame(dataset_path: Path, dataset_gdf: gpd.GeoDataFrame) -> None:
-    """
-    Write a GeoDataFrame as a parquet file.
-
-    :param dataset_path: the Path of the output file
-    :param dataset_gdf: the dataset
-    """
-    dataset_path.parent.mkdir(parents=True, exist_ok=True)
-    dataset_gdf.to_parquet(dataset_path)
 
 
 def validate_dataset_crs(dataset: gpd.GeoDataFrame, georef: Georeference) -> None:
