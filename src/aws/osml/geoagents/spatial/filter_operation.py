@@ -1,12 +1,13 @@
 #  Copyright 2025 Amazon.com, Inc. or its affiliates.
 
 import logging
+import tempfile
 from pathlib import Path
 
 import shapely
 
 from ..common import Georeference, LocalAssets, Workspace
-from .spatial_utils import create_derived_stac_item, read_geo_data_frame, write_geo_data_frame
+from .spatial_utils import create_derived_stac_item
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ def filter_operation(
             # Select the assets to process and load them into memory
             selected_asset_key = next(iter(local_asset_paths))
             local_dataset_path = local_asset_paths[selected_asset_key]
-            gdf = read_geo_data_frame(local_dataset_path)
+            gdf = workspace.read_geo_data_frame(str(local_dataset_path))
 
             # Run the filter operation
             filtered_gdf = gdf[gdf.intersects(filter_bounds)]
@@ -47,10 +48,14 @@ def filter_operation(
 
             # Write the derived dataset to the local workspace cache
             filtered_dataset_reference = Georeference.new_from_timestamp(asset_tag=selected_asset_key, prefix=function_name)
-            filtered_dataset_path = Path(
-                workspace.session_local_path, filtered_dataset_reference.item_id, f"filtered-{local_dataset_path.name}"
-            )
-            write_geo_data_frame(filtered_dataset_path, filtered_gdf)
+
+            # Create a temporary directory for the filtered dataset
+            temp_dir = Path(tempfile.gettempdir())
+            filtered_dataset_path = temp_dir / filtered_dataset_reference.item_id / "filtered-result.parquet"
+            filtered_dataset_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Write the filtered dataset
+            workspace.write_geo_data_frame(str(filtered_dataset_path), filtered_gdf)
 
             # Create a new STAC item describing the result
             filtered_dataset_item = create_derived_stac_item(
@@ -58,7 +63,7 @@ def filter_operation(
             )
 
             # Publish the result to the workspace
-            workspace.publish_item(item=filtered_dataset_item, local_assets={selected_asset_key: filtered_dataset_path})
+            workspace.create_item(item=filtered_dataset_item, temp_assets={selected_asset_key: filtered_dataset_path})
 
             # Generate text for final summary including counts and references
             text_result = (

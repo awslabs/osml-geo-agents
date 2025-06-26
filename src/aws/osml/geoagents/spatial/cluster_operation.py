@@ -1,6 +1,7 @@
 #  Copyright 2025 Amazon.com, Inc. or its affiliates.
 
 import logging
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -10,7 +11,7 @@ from pyproj import CRS
 from sklearn.cluster import DBSCAN
 
 from ..common import Georeference, LocalAssets, Workspace
-from .spatial_utils import create_derived_stac_item, read_geo_data_frame, validate_dataset_crs, write_geo_data_frame
+from .spatial_utils import create_derived_stac_item, validate_dataset_crs
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ def cluster_operation(
             # Select the assets to process and load them into memory
             selected_asset_key = next(iter(local_asset_paths))
             local_dataset_path = local_asset_paths[selected_asset_key]
-            gdf = read_geo_data_frame(local_dataset_path)
+            gdf = workspace.read_geo_data_frame(str(local_dataset_path))
             validate_dataset_crs(gdf, dataset_georef)
 
             # Project to Web Mercator (EPSG:3857) for meter-based calculations
@@ -84,15 +85,13 @@ def cluster_operation(
                 asset_key = f"cluster-{cluster_id}"
 
                 # Create path for cluster dataset
-                cluster_dataset_path = Path(
-                    workspace.session_local_path,
-                    base_georef.item_id,
-                    f"{asset_key}-{local_dataset_path.name}",
-                )
+                temp_dir = Path(tempfile.gettempdir())
+                cluster_dataset_path = temp_dir / base_georef.item_id / f"{asset_key}-result.parquet"
+                cluster_dataset_path.parent.mkdir(parents=True, exist_ok=True)
                 cluster_dataset_paths.append(cluster_dataset_path)
 
                 # Write cluster data
-                write_geo_data_frame(cluster_dataset_path, cluster_gdf)
+                workspace.write_geo_data_frame(str(cluster_dataset_path), cluster_gdf)
 
                 # Add to assets dictionary
                 assets[asset_key] = cluster_dataset_path
@@ -121,7 +120,7 @@ def cluster_operation(
             clusters_item = create_derived_stac_item(base_georef, dataset_title, dataset_summary, item)
 
             # Publish single item with all cluster assets
-            workspace.publish_item(item=clusters_item, local_assets=assets)
+            workspace.create_item(item=clusters_item, temp_assets=assets)
 
             # Generate text result
             text_result = (

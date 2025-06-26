@@ -3,6 +3,8 @@
 import logging
 from typing import Any
 
+from s3fs import S3FileSystem
+
 from ..common import Workspace
 from .tool_base import ToolBase, ToolExecutionError
 from .tool_registry import ToolRegistry
@@ -51,9 +53,16 @@ class ToolRouter:
             # TODO: Consider managing the lifecycle of workspaces for a session differently than for users.
             #       Session workspaces should expire much more quickly and clients that create them may
             #       create a lot of them.
-            workspace = Workspace(
-                ToolBase.get_requesting_user(event), self.workspace_bucket_name, self.workspace_local_cache
-            )
+            user_id = ToolBase.get_requesting_user(event)
+            logger.warning("User_id hardcoded to shared for early development testing")
+            user_id = "shared"
+
+            try:
+                s3fs = S3FileSystem(anon=False)
+                workspace = Workspace(filesystem=s3fs, prefix=f"{self.workspace_bucket_name}/{user_id}")
+            except Exception as e:
+                logger.error(f"Error creating S3 filesystem for workspace: {str(e)}", exc_info=True)
+                raise ToolExecutionError("Failed to connect to the S3 workspace bucket.")
 
             return tool.handler(event, context, workspace)
 

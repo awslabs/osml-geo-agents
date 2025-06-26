@@ -2,8 +2,10 @@
 
 import logging
 import os
+from pathlib import Path
 from typing import Optional
 
+from fsspec.implementations.local import LocalFileSystem
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from shapely import from_wkt
@@ -25,9 +27,10 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("OversightML GeoAgents MCP Server", port=8000, host="127.0.0.1")
 
 # Create a workspace for storing assets
-workspace_bucket_name = os.environ.get("WORKSPACE_BUCKET_NAME", "osml-geo-agents-workspace")
 workspace_local_cache = os.environ.get("WORKSPACE_LOCAL_CACHE", "/tmp/osml-geo-agents/cache")
-workspace = Workspace("mcp-user", workspace_bucket_name, workspace_local_cache)
+workspace_path = Path(workspace_local_cache)
+workspace_path.mkdir(parents=True, exist_ok=True)
+workspace = Workspace(filesystem=LocalFileSystem(), prefix=workspace_local_cache)
 
 
 @mcp.tool()
@@ -263,7 +266,6 @@ if __name__ == "__main__":
 
     # Run the server
     logger.info("Starting OSML GeoAgents MCP Server")
-    logger.info(f" Workspace S3 Bucket: {workspace_bucket_name}")
     logger.info(f" Workspace Local Directory: {workspace_local_cache}")
 
     # Note Cline seems to have a bug that prevents it from communicating with

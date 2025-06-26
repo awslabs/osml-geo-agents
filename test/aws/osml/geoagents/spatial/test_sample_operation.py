@@ -24,8 +24,7 @@ class TestSampleOperation(unittest.TestCase):
         self.number_of_features = 3
 
     @patch("aws.osml.geoagents.spatial.sample_operation.LocalAssets")
-    @patch("aws.osml.geoagents.spatial.sample_operation.read_geo_data_frame")
-    def test_sample_operation_successful(self, mock_read_geo_data_frame, mock_local_assets):
+    def test_sample_operation_successful(self, mock_local_assets):
         """Test successful sampling of features."""
         # Set up mock for LocalAssets context manager
         mock_item = Mock()
@@ -47,7 +46,7 @@ class TestSampleOperation(unittest.TestCase):
         }
         mock_gdf = gpd.GeoDataFrame(data, geometry=points)
         mock_gdf.crs = "EPSG:4326"
-        mock_read_geo_data_frame.return_value = mock_gdf
+        self.mock_workspace.read_geo_data_frame.return_value = mock_gdf
 
         # Call the operation function
         result = sample_operation(
@@ -64,11 +63,10 @@ class TestSampleOperation(unittest.TestCase):
 
         # Verify the mocks were called
         mock_local_assets.assert_called_once()
-        mock_read_geo_data_frame.assert_called_once()
+        self.mock_workspace.read_geo_data_frame.assert_called_once()
 
     @patch("aws.osml.geoagents.spatial.sample_operation.LocalAssets")
-    @patch("aws.osml.geoagents.spatial.sample_operation.read_geo_data_frame")
-    def test_sample_operation_default_number(self, mock_read_geo_data_frame, mock_local_assets):
+    def test_sample_operation_default_number(self, mock_local_assets):
         """Test sampling with default number of features."""
         # Set up mock for LocalAssets context manager
         mock_item = Mock()
@@ -79,7 +77,7 @@ class TestSampleOperation(unittest.TestCase):
         points = [shapely.Point(i, i) for i in range(15)]
         mock_gdf = gpd.GeoDataFrame(geometry=points)
         mock_gdf.crs = "EPSG:4326"
-        mock_read_geo_data_frame.return_value = mock_gdf
+        self.mock_workspace.read_geo_data_frame.return_value = mock_gdf
 
         # Call the operation function with None for number_of_features
         result = sample_operation(dataset_georef=self.dataset_georef, number_of_features=None, workspace=self.mock_workspace)
@@ -89,7 +87,7 @@ class TestSampleOperation(unittest.TestCase):
 
         # Verify the mocks were called
         mock_local_assets.assert_called_once()
-        mock_read_geo_data_frame.assert_called_once()
+        self.mock_workspace.read_geo_data_frame.assert_called_once()
 
 
 if __name__ == "__main__":

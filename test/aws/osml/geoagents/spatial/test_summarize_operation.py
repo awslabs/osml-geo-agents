@@ -60,8 +60,7 @@ class TestSummarizeOperation(unittest.TestCase):
         return gdf
 
     @patch("aws.osml.geoagents.spatial.summarize_operation.LocalAssets")
-    @patch("aws.osml.geoagents.spatial.summarize_operation.read_geo_data_frame")
-    def test_operation_with_points(self, mock_read_gdf, mock_context_manager):
+    def test_operation_with_points(self, mock_context_manager):
         """Test operation with point geometry dataset."""
         # Setup mock context manager
         mock_context = Mock()
@@ -73,7 +72,7 @@ class TestSummarizeOperation(unittest.TestCase):
         mock_exit.return_value = None
         mock_context_manager.return_value = mock_context
         gdf = self.create_point_gdf()
-        mock_read_gdf.return_value = gdf
+        self.mock_workspace.read_geo_data_frame.return_value = gdf
 
         # Execute operation
         result = summarize_operation(dataset_georef=self.dataset_georef, workspace=self.mock_workspace)
@@ -90,8 +89,7 @@ class TestSummarizeOperation(unittest.TestCase):
         self.assertIn("timestamp: Date/time column", result)
 
     @patch("aws.osml.geoagents.spatial.summarize_operation.LocalAssets")
-    @patch("aws.osml.geoagents.spatial.summarize_operation.read_geo_data_frame")
-    def test_operation_with_polygons(self, mock_read_gdf, mock_context_manager):
+    def test_operation_with_polygons(self, mock_context_manager):
         """Test operation with polygon geometry dataset."""
         # Setup mock context manager
         mock_context = Mock()
@@ -103,7 +101,7 @@ class TestSummarizeOperation(unittest.TestCase):
         mock_exit.return_value = None
         mock_context_manager.return_value = mock_context
         gdf = self.create_polygon_gdf()
-        mock_read_gdf.return_value = gdf
+        self.mock_workspace.read_geo_data_frame.return_value = gdf
 
         # Execute operation
         result = summarize_operation(dataset_georef=self.dataset_georef, workspace=self.mock_workspace)
@@ -117,8 +115,7 @@ class TestSummarizeOperation(unittest.TestCase):
         self.assertIn("area_size: Numeric column (float64) ranging from 1.0 to 1.0", result)
 
     @patch("aws.osml.geoagents.spatial.summarize_operation.LocalAssets")
-    @patch("aws.osml.geoagents.spatial.summarize_operation.read_geo_data_frame")
-    def test_operation_with_metadata(self, mock_read_gdf, mock_context_manager):
+    def test_operation_with_metadata(self, mock_context_manager):
         """Test operation processes column metadata correctly."""
         # Setup mock context manager
         mock_context = Mock()
@@ -130,7 +127,7 @@ class TestSummarizeOperation(unittest.TestCase):
         mock_exit.return_value = None
         mock_context_manager.return_value = mock_context
         gdf = self.create_gdf_with_metadata()
-        mock_read_gdf.return_value = gdf
+        self.mock_workspace.read_geo_data_frame.return_value = gdf
 
         # Execute operation
         result = summarize_operation(dataset_georef=self.dataset_georef, workspace=self.mock_workspace)

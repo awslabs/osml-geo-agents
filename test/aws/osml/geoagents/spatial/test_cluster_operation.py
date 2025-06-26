@@ -77,12 +77,8 @@ class TestClusterOperation(unittest.TestCase):
         return gdf
 
     @patch("aws.osml.geoagents.spatial.cluster_operation.LocalAssets")
-    @patch("aws.osml.geoagents.spatial.cluster_operation.read_geo_data_frame")
-    @patch("aws.osml.geoagents.spatial.cluster_operation.write_geo_data_frame")
     @patch("aws.osml.geoagents.spatial.cluster_operation.create_derived_stac_item")
-    def test_cluster_operation_successful(
-        self, mock_create_derived_stac_item, mock_write_geo_data_frame, mock_read_geo_data_frame, mock_local_assets
-    ):
+    def test_cluster_operation_successful(self, mock_create_derived_stac_item, mock_local_assets):
         """Test successful clustering of features."""
         # Set up mock for LocalAssets context manager
         mock_local_asset_paths = {"asset1": Path("/tmp/asset1.parquet")}
@@ -90,7 +86,7 @@ class TestClusterOperation(unittest.TestCase):
 
         # Create a mock GeoDataFrame with points that can be clustered
         mock_gdf = self._create_clustered_geodataframe(with_clusters=True)
-        mock_read_geo_data_frame.return_value = mock_gdf
+        self.mock_workspace.read_geo_data_frame.return_value = mock_gdf
 
         # Set up mock for create_derived_stac_item
         mock_derived_item = Mock(spec=Item)
@@ -111,10 +107,10 @@ class TestClusterOperation(unittest.TestCase):
 
         # Verify the mocks were called
         mock_local_assets.assert_called_once()
-        mock_read_geo_data_frame.assert_called_once()
-        mock_write_geo_data_frame.assert_called()
+        self.mock_workspace.read_geo_data_frame.assert_called_once()
+        self.mock_workspace.write_geo_data_frame.assert_called()
         mock_create_derived_stac_item.assert_called_once()
-        self.mock_workspace.publish_item.assert_called_once()
+        self.mock_workspace.create_item.assert_called_once()
 
 
 if __name__ == "__main__":

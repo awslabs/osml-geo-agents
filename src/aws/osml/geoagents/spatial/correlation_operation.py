@@ -1,6 +1,7 @@
 #  Copyright 2025 Amazon.com, Inc. or its affiliates.
 
 import logging
+import tempfile
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -9,7 +10,7 @@ import geopandas as gpd
 from pyproj import CRS
 
 from ..common import Georeference, LocalAssets, Workspace
-from .spatial_utils import create_derived_stac_item, read_geo_data_frame, validate_dataset_crs, write_geo_data_frame
+from .spatial_utils import create_derived_stac_item, validate_dataset_crs
 
 logger = logging.getLogger(__name__)
 
@@ -60,14 +61,14 @@ def correlation_operation(
             # Select the assets to process and load them into memory
             selected_asset_key1 = next(iter(local_assets1))
             local_dataset_path1 = local_assets1[selected_asset_key1]
-            gdf1 = read_geo_data_frame(local_dataset_path1)
+            gdf1 = workspace.read_geo_data_frame(str(local_dataset_path1))
             if dataset1_geo_column:
                 gdf1.set_geometry(dataset1_geo_column, inplace=True)
             validate_dataset_crs(gdf1, dataset1_georef)
 
             selected_asset_key2 = next(iter(local_assets2))
             local_dataset_path2 = local_assets2[selected_asset_key2]
-            gdf2 = read_geo_data_frame(local_dataset_path2)
+            gdf2 = workspace.read_geo_data_frame(str(local_dataset_path2))
             if dataset2_geo_column:
                 gdf2.set_geometry(dataset2_geo_column, inplace=True)
             validate_dataset_crs(gdf2, dataset2_georef)
@@ -103,12 +104,14 @@ def correlation_operation(
             correlation_dataset_reference = Georeference.new_from_timestamp(
                 asset_tag=selected_asset_key1, prefix=function_name
             )
-            correlation_dataset_path = Path(
-                workspace.session_local_path,
-                correlation_dataset_reference.item_id,
-                f"correlation-{local_dataset_path1.name}",
-            )
-            write_geo_data_frame(correlation_dataset_path, result_gdf)
+
+            # Create a temporary directory for the correlation dataset
+            temp_dir = Path(tempfile.gettempdir())
+            correlation_dataset_path = temp_dir / correlation_dataset_reference.item_id / "correlation-result.parquet"
+            correlation_dataset_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Write the correlation dataset
+            workspace.write_geo_data_frame(str(correlation_dataset_path), result_gdf)
 
             # Create a new STAC item describing the result
             correlation_dataset_item = create_derived_stac_item(
@@ -116,9 +119,7 @@ def correlation_operation(
             )
 
             # Publish the result to the workspace
-            workspace.publish_item(
-                item=correlation_dataset_item, local_assets={selected_asset_key1: correlation_dataset_path}
-            )
+            workspace.create_item(item=correlation_dataset_item, temp_assets={selected_asset_key1: correlation_dataset_path})
 
             # Generate text for final summary including counts and references
             text_result = (

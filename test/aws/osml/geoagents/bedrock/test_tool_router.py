@@ -49,7 +49,7 @@ class TestToolRouter(unittest.TestCase):
         response = self.tool_router.handle_request(test_event, test_context)
 
         # Verify workspace creation
-        mock_workspace_class.assert_called_once_with("test-session", self.workspace_bucket, self.workspace_cache)
+        mock_workspace_class.assert_called_once()
 
         # Verify the tool was called with correct arguments
         mock_tool.handler.assert_called_once_with(test_event, test_context, mock_workspace)

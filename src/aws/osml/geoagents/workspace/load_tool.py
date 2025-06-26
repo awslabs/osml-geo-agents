@@ -97,12 +97,12 @@ class LoadTool(ToolBase):
             # Publish the item to the workspace
             try:
                 asset_key = "data"
-                georef = workspace.publish_item(item=item, local_assets={asset_key: local_path})
+                georef = workspace.create_item(item=item, temp_assets={asset_key: local_path})
                 result = f"Successfully loaded dataset from {s3_url} into the workspace. The dataset is now available as {georef}."
                 return self.create_action_response(event, result)
             except Exception as e:
-                logger.error(f"Failed to publish item to workspace: {str(e)}")
-                raise ToolExecutionError(f"Failed to publish item to workspace: {str(e)}")
+                logger.error(f"Failed to create item in workspace: {str(e)}")
+                raise ToolExecutionError(f"Failed to create item in workspace: {str(e)}")
 
         except ToolExecutionError as txe:
             # ToolExecutionErrors contain informative messages that can be relayed back to the
