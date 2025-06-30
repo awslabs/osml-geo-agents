@@ -13,7 +13,11 @@ logger = logging.getLogger(__name__)
 
 
 def filter_operation(
-    dataset_georef: Georeference, filter_bounds: shapely.Geometry, workspace: Workspace, function_name: str
+    dataset_georef: Georeference,
+    filter_bounds: shapely.Geometry,
+    workspace: Workspace,
+    function_name: str,
+    output_format: str = "parquet",
 ) -> str:
     """
     Filter a dataset to only contain features that intersect a given geometry.
@@ -22,6 +26,7 @@ def filter_operation(
     :param filter_bounds: Geometry to use as a filter
     :param workspace: Workspace for storing assets
     :param function_name: Function name for creating georeference
+    :param output_format: Format for the output file (geojson or parquet)
     :return: A formatted string with the filtering result
     :raises ValueError: If filtering fails
     """
@@ -51,7 +56,7 @@ def filter_operation(
 
             # Create a temporary directory for the filtered dataset
             temp_dir = Path(tempfile.gettempdir())
-            filtered_dataset_path = temp_dir / filtered_dataset_reference.item_id / "filtered-result.parquet"
+            filtered_dataset_path = temp_dir / filtered_dataset_reference.item_id / f"filtered-result.{output_format}"
             filtered_dataset_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Write the filtered dataset

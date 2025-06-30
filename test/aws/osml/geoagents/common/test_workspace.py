@@ -295,8 +295,8 @@ class TestWorkspace(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.local_workspace.read_geo_data_frame(file_path)
 
-    def test_write_geo_data_frame(self):
-        """Test write_geo_data_frame."""
+    def test_geo_data_frame_io_geoparquet(self):
+        """Test write_geo_data_frame with GeoParquet format."""
         # Create a sample GeoDataFrame
         sample_gdf = self.create_geo_data_frame()
 
@@ -310,6 +310,27 @@ class TestWorkspace(unittest.TestCase):
         self.assertTrue(os.path.exists(file_path))
 
         # Read the file back and verify the contents
+        result = self.local_workspace.read_geo_data_frame(file_path)
+
+        # Verify the result
+        self.assertIsInstance(result, gpd.GeoDataFrame)
+        self.assertEqual(len(result), 3)  # Should have 3 rows
+        self.assertTrue("geometry" in result.columns)
+        self.assertTrue("id" in result.columns)
+        self.assertTrue("value" in result.columns)
+
+    def test_geo_data_frame_io_geojson(self):
+        """Test write_geo_data_frame with GeoJSON format."""
+        # Create a sample GeoDataFrame
+        sample_gdf = self.create_geo_data_frame()
+
+        # Create a file path with .geojson extension
+        file_path = os.path.join(self.tmp_path, "test_output.geojson")
+
+        # Write the GeoDataFrame to the file
+        self.local_workspace.write_geo_data_frame(file_path, sample_gdf)
+
+        # Verify the file can be read back in
         result = self.local_workspace.read_geo_data_frame(file_path)
 
         # Verify the result

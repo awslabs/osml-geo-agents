@@ -22,6 +22,7 @@ def cluster_operation(
     max_clusters: Optional[float],
     workspace: Workspace,
     function_name: str,
+    output_format: str = "parquet",
 ) -> str:
     """
     Cluster features in a dataset using DBSCAN based on their geometric centers.
@@ -31,6 +32,7 @@ def cluster_operation(
     :param max_clusters: Optional maximum number of clusters to return (largest first)
     :param workspace: Workspace for storing assets
     :param function_name: Function name for creating georeference
+    :param output_format: Format for the output file (geojson or parquet)
     :return: A formatted string with the clustering result
     :raises ValueError: If clustering fails
     """
@@ -86,7 +88,7 @@ def cluster_operation(
 
                 # Create path for cluster dataset
                 temp_dir = Path(tempfile.gettempdir())
-                cluster_dataset_path = temp_dir / base_georef.item_id / f"{asset_key}-result.parquet"
+                cluster_dataset_path = temp_dir / base_georef.item_id / f"{asset_key}-result.{output_format}"
                 cluster_dataset_path.parent.mkdir(parents=True, exist_ok=True)
                 cluster_dataset_paths.append(cluster_dataset_path)
 

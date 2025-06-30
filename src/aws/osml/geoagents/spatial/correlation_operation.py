@@ -31,6 +31,7 @@ def correlation_operation(
     dataset2_geo_column: Optional[str],
     workspace: Workspace,
     function_name: str,
+    output_format: str = "parquet",
 ) -> str:
     """
     Correlate two spatial datasets using a spatial join.
@@ -43,6 +44,7 @@ def correlation_operation(
     :param dataset2_geo_column: Optional name of the geometry column in the second dataset
     :param workspace: Workspace for storing assets
     :param function_name: Function name for creating georeference
+    :param output_format: Format for the output file (geojson or parquet)
     :return: A formatted string with the correlation result
     :raises ValueError: If correlation fails
     """
@@ -107,7 +109,9 @@ def correlation_operation(
 
             # Create a temporary directory for the correlation dataset
             temp_dir = Path(tempfile.gettempdir())
-            correlation_dataset_path = temp_dir / correlation_dataset_reference.item_id / "correlation-result.parquet"
+            correlation_dataset_path = (
+                temp_dir / correlation_dataset_reference.item_id / f"correlation-result.{output_format}"
+            )
             correlation_dataset_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Write the correlation dataset

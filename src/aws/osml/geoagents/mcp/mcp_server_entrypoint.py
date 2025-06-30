@@ -63,6 +63,7 @@ def cluster_features(
     max_clusters: Optional[int] = Field(
         description="Optional maximum number of clusters to return (largest first)", default=None
     ),
+    output_format: str = Field(description="Format for the output file (geojson or parquet)", default="parquet"),
 ) -> str:
     """
     Cluster features in a dataset using DBSCAN based on their geometric centers.
@@ -74,7 +75,7 @@ def cluster_features(
         dataset_georef = Georeference(dataset)
 
         # Call the cluster operation
-        result = cluster_operation(dataset_georef, distance, max_clusters, workspace, "cluster_features")
+        result = cluster_operation(dataset_georef, distance, max_clusters, workspace, "cluster_features", output_format)
 
         return result
     except Exception as e:
@@ -98,6 +99,7 @@ def correlate_datasets(
     dataset2_geo_column: Optional[str] = Field(
         description="Optional name of the geometry column in the second dataset", default=None
     ),
+    output_format: str = Field(description="Format for the output file (geojson or parquet)", default="parquet"),
 ) -> str:
     """
     Correlate two spatial datasets using a spatial join.
@@ -124,6 +126,7 @@ def correlate_datasets(
             dataset2_geo_column,
             workspace,
             "correlate_datasets",
+            output_format,
         )
 
         return result
@@ -136,6 +139,7 @@ def correlate_datasets(
 def filter_dataset(
     dataset: str = Field(description="Georeference string for the dataset to filter"),
     filter: str = Field(description="WKT string representation of the geometry to use as a filter"),
+    output_format: str = Field(description="Format for the output file (geojson or parquet)", default="parquet"),
 ) -> str:
     """
     Filter a dataset to only contain features that intersect a given geometry.
@@ -150,7 +154,7 @@ def filter_dataset(
         filter_geometry = from_wkt(filter)
 
         # Call the filter operation
-        result = filter_operation(dataset_georef, filter_geometry, workspace, "filter_dataset")
+        result = filter_operation(dataset_georef, filter_geometry, workspace, "filter_dataset", output_format)
 
         return result
     except Exception as e:

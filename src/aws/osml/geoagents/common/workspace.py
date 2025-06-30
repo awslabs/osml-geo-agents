@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
@@ -13,6 +14,33 @@ from pystac import Asset, Item
 from aws.osml.geoagents.common.georeference import Georeference
 
 logger = logging.getLogger(__name__)
+
+
+# This mapping is taken from geopandas. In theory the read/write file
+# routines handle this natively but some issues have been observed
+# working with binary streams.
+_EXTENSION_TO_DRIVER = {
+    ".bna": "BNA",
+    ".dxf": "DXF",
+    ".csv": "CSV",
+    ".shp": "ESRI Shapefile",
+    ".dbf": "ESRI Shapefile",
+    ".json": "GeoJSON",
+    ".geojson": "GeoJSON",
+    ".geojsonl": "GeoJSONSeq",
+    ".geojsons": "GeoJSONSeq",
+    ".gpkg": "GPKG",
+    ".gml": "GML",
+    ".xml": "GML",
+    ".gpx": "GPX",
+    ".gtm": "GPSTrackMaker",
+    ".gtz": "GPSTrackMaker",
+    ".tab": "MapInfo File",
+    ".mif": "MapInfo File",
+    ".mid": "MapInfo File",
+    ".dgn": "DGN",
+    ".fgb": "FlatGeobuf",
+}
 
 
 class Workspace:
@@ -222,7 +250,7 @@ class Workspace:
                     result[name] = field.metadata[b"comment"].decode("utf-8")
         return result
 
-    def read_geo_data_frame(self, file_path: str) -> gpd.GeoDataFrame:
+    def read_geo_data_frame(self, dataset_path: str) -> gpd.GeoDataFrame:
         """
         Read a GeoDataFrame from a file in the workspace filesystem.
 
@@ -231,33 +259,112 @@ class Workspace:
         :return: the GeoDataFrame
         """
         try:
-            if self.is_parquet_file(file_path):
-                with self.filesystem.open(file_path, "rb") as f:
+            if self.is_parquet_file(dataset_path):
+                with self.filesystem.open(dataset_path, "rb") as f:
                     gdf = gpd.read_parquet(f)
 
                 # Add column descriptions as attributes
-                gdf.attrs["column-descriptions"] = self.read_field_descriptions_from_parquet(file_path)
+                gdf.attrs["column-descriptions"] = self.read_field_descriptions_from_parquet(dataset_path)
             else:
-                with self.filesystem.open(file_path, "rb") as f:
-                    gdf = gpd.read_file(f)
+                # Determine the driver based on file extension
+                _, ext = os.path.splitext(dataset_path.lower())
+                driver = _EXTENSION_TO_DRIVER.get(ext)
+
+                # This is a hack to work around some compatability issues between
+                # GeoPandas / pyogrio and the fsspec based filesystem used by the
+                # workspace. pyogrio is using GDAL libraries under the cover and
+                # those are not working well with the file like objects that
+                # result from the fsspec open calls. This hack copies the geo
+                # file to a local temporary file which can then be read successfully
+                # by the pyogrio library.
+                with tempfile.NamedTemporaryFile(suffix=ext) as temp_file:
+                    with self.filesystem.open(dataset_path, "rb") as f:
+                        temp_file.write(f.read())
+                        temp_file.flush()
+
+                    # Read from the temporary file with the appropriate driver
+                    gdf = gpd.read_file(temp_file.name, driver=driver)
 
             if gdf is None:
-                raise ValueError(f"Unable to create GeoDataFrame from: {os.path.basename(file_path)}")
+                raise ValueError(f"Unable to create GeoDataFrame from: {os.path.basename(dataset_path)}")
 
             return gdf
-        except Exception as e:
-            logger.info(f"Unable to create GeoDataFrame from: {os.path.basename(file_path)}", e)
-            raise ValueError(f"Unable to create GeoDataFrame from: {os.path.basename(file_path)}")
+        except Exception:
+            logger.error(f"Unable to create GeoDataFrame from: {os.path.basename(dataset_path)}", exc_info=True)
+            raise ValueError(f"Unable to create GeoDataFrame from: {os.path.basename(dataset_path)}")
+
+    def select_active_geometry_column(self, gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+        """
+        Create a copy of the GeoDataFrame with only the active geometry column.
+
+        When a GeoDataFrame has multiple geometry columns, this function creates a copy
+        that retains only the active geometry column and drops all other geometry columns.
+
+        :param gdf: Input GeoDataFrame that may have multiple geometry columns
+        :return: A GeoDataFrame with only the active geometry column
+        """
+        geometry_cols = gdf.columns[gdf.dtypes == "geometry"]
+
+        if len(geometry_cols) <= 1:
+            return gdf
+
+        result_gdf = gdf.copy()
+        active_geom_col = gdf.geometry.name
+        cols_to_drop = [col for col in geometry_cols if col != active_geom_col]
+        if cols_to_drop:
+            result_gdf = result_gdf.drop(columns=cols_to_drop)
+
+        return result_gdf
 
     def write_geo_data_frame(self, dataset_path: str, dataset_gdf: gpd.GeoDataFrame) -> None:
         """
-        Write a GeoDataFrame as a parquet file in the workspace filesystem.
+        Write a GeoDataFrame to the workspace filesystem.
+
+        This function supports multiple output formats (Parquet, GeoJSON, etc.).
+        The format will be chosen to match the file extension on the dataset path. Common
+        extensions include .parquet and .geojson to generate GeoParquet and GeoJSON files
+        respectively. Other extensions (.xml, .csv, etc.) are supported as well but depend
+        on GeoPandas.
 
         :param dataset_path: Path in the filesystem for the output file
         :param dataset_gdf: the dataset to write
         """
+
         # Make sure the directory exists
         self.filesystem.makedirs(os.path.dirname(dataset_path), exist_ok=True)
 
-        # Write the GeoDataFrame to parquet
-        dataset_gdf.to_parquet(dataset_path, filesystem=self.filesystem)
+        # Check file extension to determine write method
+        if dataset_path.lower().endswith((".parquet", ".geoparquet")):
+            dataset_gdf.to_parquet(dataset_path, filesystem=self.filesystem)
+        else:
+            # Determine the driver based on file extension
+            _, ext = os.path.splitext(dataset_path.lower())
+            driver = _EXTENSION_TO_DRIVER.get(ext)
+
+            # Handle GeoJSON format specifically for multiple geometry columns
+            is_geojson = ext.lower() in [".json", ".geojson"]
+            write_gdf = dataset_gdf
+
+            # Check if we're writing to GeoJSON and have multiple geometry columns
+            if is_geojson:
+                # Use the utility function to select only the active geometry column if needed
+                write_gdf = self.select_active_geometry_column(dataset_gdf)
+                if write_gdf is not dataset_gdf:  # Only log if we actually made a change
+                    logger.info(
+                        f"Multiple geometry columns detected. Using only the active geometry column for {os.path.basename(dataset_path)}"
+                    )
+
+            # This is a hack to work around some compatability issues between
+            # GeoPandas / pyogrio and the fsspec based filesystem used by the
+            # workspace. pyogrio is using GDAL libraries under the cover and
+            # those are not working well with the file like objects that
+            # result from the fsspec open calls. This hack has the pyogrio
+            # library write to a local temporary file which is then copied to
+            # the final location in the fsspec filesystem.
+            with tempfile.NamedTemporaryFile(suffix=ext) as temp_file:
+                write_gdf.to_file(temp_file.name, driver=driver)
+
+                # Read the temporary file and write to the filesystem
+                with open(temp_file.name, "rb") as src:
+                    with self.filesystem.open(dataset_path, "wb") as dst:
+                        dst.write(src.read())
