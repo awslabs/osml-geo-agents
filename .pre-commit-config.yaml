@@ -61,21 +61,26 @@ repos:
             schemas/.*|
             test/data/.*|
             cdk/osml-geo-agents-config/.*|
-            cdk/cdk.json|
-            cdk/.gitignore|
-            cdk/eslint.config.mjs|
-            cdk/jest.config.js|
-            cdk/.npmignore|
-            cdk/.prettierrc|
-            cdk/tsconfig.json|
-            cdk/package.json|
-            cdk/package-lock.json|
+            cdk/cdk\.json|
+            cdk/cdk\.context\.json|
+            cdk/\.gitignore|
+            cdk/eslint\.config\.mjs|
+            cdk/\.eslintrc\.js|
+            cdk/jest\.config\.js|
+            cdk/\.npmignore|
+            cdk/\.prettierrc|
+            cdk/\.prettierignore|
+            cdk/tsconfig\.json|
+            cdk/package\.json|
+            cdk/package-lock\.json|
+            cdk/bin/deployment/.*\.json\.example|
             LICENSE|
-            py.typed|
-            pyproject.toml|
-            setup.cfg|
-            setup.py|
-            tox.ini
+            NOTICE|
+            py\.typed|
+            pyproject\.toml|
+            setup\.cfg|
+            setup\.py|
+            tox\.ini
           )$
       - id: copyright-required
         name: require copyright
@@ -88,21 +93,26 @@ repos:
             schemas/.*|
             test/data/.*|
             cdk/osml-geo-agents-config/.*|
-            cdk/cdk.json|
-            cdk/.gitignore|
-            cdk/eslint.config.mjs|
-            cdk/jest.config.js|
-            cdk/.npmignore|
-            cdk/.prettierrc|
-            cdk/tsconfig.json|
-            cdk/package.json|
-            cdk/package-lock.json|
+            cdk/cdk\.json|
+            cdk/cdk\.context\.json|
+            cdk/\.gitignore|
+            cdk/eslint\.config\.mjs|
+            cdk/\.eslintrc\.js|
+            cdk/jest\.config\.js|
+            cdk/\.npmignore|
+            cdk/\.prettierrc|
+            cdk/\.prettierignore|
+            cdk/tsconfig\.json|
+            cdk/package\.json|
+            cdk/package-lock\.json|
+            cdk/bin/deployment/.*\.json\.example|
             LICENSE|
-            py.typed|
-            pyproject.toml|
-            setup.cfg|
-            setup.py|
-            tox.ini
+            NOTICE|
+            py\.typed|
+            pyproject\.toml|
+            setup\.cfg|
+            setup\.py|
+            tox\.ini
           )$
 
   - repo: local
@@ -121,18 +131,17 @@ repos:
         files: ^cdk/.*\.(ts|tsx)$
         types: [ file ]
         pass_filenames: false
-        stages: [manual]  # This makes the hook only run when explicitly called TODO: remove this
 
       - id: eslint
         name: ESLint
-        entry: bash -c 'cd cdk && npm run lint:fix'
+        entry: bash -c 'cd cdk && npx eslint . --ext .ts,.tsx --fix'
         language: system
         files: ^cdk/.*\.(ts|tsx)$
         types: [file]
 
       - id: prettier
         name: Prettier
-        entry: bash -c 'cd cdk && npm run format'
+        entry: bash -c 'cd cdk && npx prettier --write .'
         language: system
         files: ^cdk/.*\.(ts|tsx|js|jsx|json|yml|yaml|md)$
         types: [file]

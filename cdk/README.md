@@ -1,8 +1,10 @@
-# OSML Geo Agents CDK Infrastructure
+# OSML Geo Agents – CDK Infrastructure
 
-This CDK project deploys the infrastructure required to run OSML Geo Agents on AWS, including a containerized Lambda function for executing geo-processing tools and an Amazon Bedrock agent for orchestration.
+This CDK project deploys the core infrastructure for running **OSML Geo Agents** on AWS. It includes a containerized Lambda function for geospatial processing and an **Amazon Bedrock Agent** for orchestration.
 
-## Architecture
+---
+
+## 🧭 Architecture Overview
 
 ```ascii
 ┌─────────────────┐     ┌──────────────────┐
@@ -13,88 +15,142 @@ This CDK project deploys the infrastructure required to run OSML Geo Agents on A
          │                       │
          ▼                       ▼
 ┌─────────────────┐     ┌──────────────────┐
-│  Foundation     │     │   S3 Workspace   │
-│    Model        │     │     Bucket       │
+│ Foundation Model│     │   S3 Workspace   │
 └─────────────────┘     └──────────────────┘
 ```
 
-## Prerequisites
+---
 
-- AWS CDK CLI installed and configured
-- Node.js and npm installed
-- Docker installed (for building Lambda container image)
-- An existing VPC with private subnets and NAT Gateway
-- An S3 bucket for the workspace
+## 📋 Prerequisites
 
-## Deployment
+Before deploying, ensure the following tools and resources are available:
 
-1. Install dependencies:
+- **AWS CLI** configured with credentials
+- **AWS CDK CLI** installed (`npm install -g aws-cdk`)
+- **Node.js** and **npm** installed
+- **Docker** installed and running (for building container images)
+- An existing **VPC** with private subnets and NAT Gateway
+- An **S3 bucket** for Lambda tool workspace storage
+
+---
+
+## ⚙️ Configuration
+
+### Deployment File: `bin/deployment/deployment.json`
+
+This file defines your deployment environment. Copy the example file and customize it:
+
+```bash
+cp bin/deployment/deployment.json.example bin/deployment/deployment.json
+```
+
+Update the contents:
+
+```json
+{
+  "projectName": "<YOUR-PROJECT-NAME>",
+  "account": {
+    "id": "<YOUR-ACCOUNT-ID>",
+    "region": "<YOUR-REGION>"
+  },
+  "config": {
+    "targetVpcId": "<YOUR-VPC-ID>",
+    "workspaceBucketName": "<YOUR-WORKSPACE-BUCKET-NAME>"
+  }
+}
+```
+
+💡 This file is validated at runtime to ensure all required fields are provided. Deployment will fail if any required fields are missing or invalid.
+
+---
+
+## 🚀 Deployment Instructions
+
+### 1. Install Dependencies
 
 ```bash
 npm install
 ```
 
-2. Set environment variables:
+### 2. Synthesize the Stack
 
 ```bash
-export CDK_DEPLOY_ACCOUNT=123456789012
-export CDK_DEPLOY_REGION=us-west-2
+cdk synth
 ```
 
-3. Deploy the stack:
+### 3. Deploy the Stack
 
 ```bash
-cdk deploy \
-  --context targetVpcId=vpc-12345678901234567 \
-  --context workspaceBucketName=osml-agent-workspace-123456789012-us-west-2
+cdk deploy
 ```
 
-## Configuration
+This command will:
 
-### Required Context Parameters
+- Validate `deployment.json`
+- Synthesize the CloudFormation template
+- Deploy the infrastructure to your AWS account
 
-- `targetVpcId`: ID of the VPC where the Lambda function will be deployed
-- `workspaceBucketName`: Name of the S3 bucket used as workspace
+---
 
-## Development
-
-### Project Structure
+## 🧱 Project Structure
 
 ```
 .
 ├── bin/
-│   └── cdk.ts                         # Example application
+│   ├── app.ts                        # Entry point, loads config and launches stack
+│   └── deployment/
+│       ├── deployment.json           # Your environment-specific config
+│       ├── deployment.json.example   # Template for creating new configs
+│       └── load-deployment.ts        # Configuration loader and validator
 ├── lib/
-│   ├── osml-geo-agent-stack.ts        # Main stack definition
-│   ├── osml-geo-agent-tool-lambda.ts  # Lambda function construct
-│   └── bedrock-agent-lambda.ts        # Bedrock agent construct
-├── osml-geo-agents-config/            # Agent configuration files
-└── test/                              # Simple tests / cdk-nag execution
+│   ├── osml-geo-agent-stack.ts       # Root CDK stack
+│   └── constructs/
+│       ├── bedrock-agent-lambda.ts   # Bedrock agent construct
+│       └── osml-agent-tool-lambda.ts # Lambda container definition
+├── test/                             # Unit tests and cdk-nag checks
+├── osml-geo-agents-config/           # Bedrock agent configuration
+└── package.json                      # Project config and npm scripts
 ```
+
+---
+
+## 🧪 Development & Testing
 
 ### Useful Commands
 
-- `npm run build` - Compile TypeScript to JavaScript
-- `npm run watch` - Watch for changes and compile
-- `npm run test` - Run the jest unit tests and generate CDK NAG report
-- `cdk synth` - Synthesize CloudFormation template
-- `cdk diff` - Compare deployed stack with current state
-- `cdk deploy` - Deploy this stack to AWS
+| Command         | Description                                          |
+| --------------- | ---------------------------------------------------- |
+| `npm run build` | Compile TypeScript to JavaScript                     |
+| `npm run watch` | Auto-recompile on file changes                       |
+| `npm run test`  | Run Jest unit tests                                  |
+| `cdk synth`     | Generate CloudFormation template                     |
+| `cdk diff`      | Compare local stack with deployed version            |
+| `cdk deploy`    | Deploy the CDK stack                                 |
+| `cdk destroy`   | Remove the deployed stack                            |
+| `cdk bootstrap` | Bootstrap CDK in your AWS account (first-time setup) |
+| `cdk list`      | List all stacks in the app                           |
 
-### Testing and Security Analysis
+---
 
-When running `npm run test`, the test suite will execute unit tests and generate a CDK NAG report. [CDK NAG](https://github.com/cdklabs/cdk-nag) is a tool that checks AWS CDK applications for best practices on security, reliability, and compliance. The report will highlight:
+## 🔐 Security & Best Practices
 
-- Security group rules that are overly permissive
-- IAM roles with excessive permissions
-- Resources that should be encrypted
-- Other AWS security best practice violations
+This project integrates **cdk-nag** to validate infrastructure against AWS security best practices. Running `npm run test` will:
 
-Review the CDK NAG report output in the test results to ensure your infrastructure changes maintain security best practices.
+- Detect overly permissive IAM roles and security groups
+- Ensure encryption is enabled where applicable
+- Warn about missing logging or compliance settings
 
-## Security
+📄 **Review the cdk-nag report** to maintain compliance and security posture before production deployments.
 
-For enhanced security when deploying this infrastructure, refer to the [AWS CDK Security and Safety Development Guide](https://github.com/aws/aws-cdk/wiki/Security-And-Safety-Dev-Guide). Key examples include:
+For deeper hardening guidance, refer to:
 
-- How to use iam.Role.customizeRoles() to apply IAM roles generated by an external security team
-- How to use the CliCredentialsStackSynthesizer if you need to use local credentials instead of assumed roles
+- [AWS CDK Security and Safety Dev Guide](https://docs.aws.amazon.com/cdk/v2/guide/security.html)
+- Use of [`CliCredentialsStackSynthesizer`](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.CliCredentialsStackSynthesizer.html) for controlling credential use
+
+---
+
+## 🧠 Summary
+
+This CDK project provides infrastructure-as-code for deploying geospatial AI capabilities using AWS Bedrock and Lambda. It includes security validations via cdk-nag and supports deployment across multiple environments through configuration files.
+
+For questions or contributions, please open an issue or PR.

@@ -8,7 +8,6 @@ import { App, Aspects, Stack } from "aws-cdk-lib";
 import { Annotations, Match } from "aws-cdk-lib/assertions";
 import { SynthesisMessage } from "aws-cdk-lib/cx-api";
 import { AwsSolutionsChecks } from "cdk-nag";
-import { black } from "chalk";
 
 import { OSMLGeoAgentStack } from "../lib/osml-geo-agent-stack";
 
@@ -56,22 +55,16 @@ function generateNagReport(stack: Stack): void {
 
   // Generate the report
   process.stdout.write(
-    black.bgWhite(
-      "\n================== CDK-NAG Compliance Report ==================\n"
-    )
+    "\n================== CDK-NAG Compliance Report ==================\n"
   );
   process.stdout.write(`Stack: ${stack.stackName}\n`);
   process.stdout.write(`Generated: ${new Date().toISOString()}\n`);
-  process.stdout.write(
-    black.bgWhite("\n=============== Summary ===============\n")
-  );
+  process.stdout.write("\n=============== Summary ===============\n");
   process.stdout.write(`Total Errors: ${errorFindings.length}\n`);
   process.stdout.write(`Total Warnings: ${warningFindings.length}\n`);
 
   if (errorFindings.length > 0) {
-    process.stdout.write(
-      black.bgRed("\n=============== Errors ===============\n")
-    );
+    process.stdout.write("\n=============== Errors ===============\n");
     errorFindings.forEach((finding) => {
       process.stdout.write(`\n${finding.resource}\n`);
       process.stdout.write(`${finding.rule}\n`);
@@ -80,9 +73,7 @@ function generateNagReport(stack: Stack): void {
   }
 
   if (warningFindings.length > 0) {
-    process.stdout.write(
-      black.bgYellow("\n=============== Warnings ===============\n")
-    );
+    process.stdout.write("\n=============== Warnings ===============\n");
     warningFindings.forEach((finding) => {
       process.stdout.write(`\n${finding.resource}\n`);
       process.stdout.write(`${finding.rule}\n`);
@@ -105,7 +96,7 @@ describe("cdk-nag Compliance Checks", () => {
 
     stack = new OSMLGeoAgentStack(app, "OSMLGeoAgentsStack", {
       env: environment,
-      targetVpcId: "vpc-xxxxx",
+      targetVpcId: "vpc-12345678",
       workspaceBucketName: "fake-test-bucket"
     });
 
