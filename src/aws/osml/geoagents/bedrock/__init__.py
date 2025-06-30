@@ -4,6 +4,7 @@
 # __init__.py file.
 # flake8: noqa
 
+from .append_tool import AppendTool
 from .buffer_tool import BufferTool
 from .cluster_tool import ClusterTool
 from .combine_tool import CombineTool

@@ -11,6 +11,7 @@ from pydantic import Field
 from shapely import from_wkt
 
 from ..common import Georeference, Workspace
+from ..spatial.append_operation import append_operation
 from ..spatial.buffer_operation import buffer_operation
 from ..spatial.cluster_operation import cluster_operation
 from ..spatial.combine_operation import combine_operation
@@ -252,6 +253,32 @@ def combine_geometries(
     except Exception as e:
         logger.error(f"Error in combine_geometries: {e}")
         return f"Error combining geometries: {str(e)}"
+
+
+@mcp.tool()
+def append_datasets(
+    datasets: list[str] = Field(description="List of georeference strings for datasets to combine"),
+    output_format: str = Field(description="Format for the output file (geojson or parquet)", default="parquet"),
+) -> str:
+    """
+    Combine multiple datasets into a single result by appending them.
+    """
+    logger.info(f"Appending datasets: {datasets}")
+
+    try:
+        # Convert each string to a Georeference object
+        dataset_refs = [Georeference(dataset) for dataset in datasets]
+
+        if not dataset_refs:
+            return "Error: No datasets provided"
+
+        # Call the append operation
+        result = append_operation(dataset_refs, workspace, "append_datasets", output_format)
+
+        return result
+    except Exception as e:
+        logger.error(f"Error in append_datasets: {e}")
+        return f"Error appending datasets: {str(e)}"
 
 
 def configure_logging(level: int = logging.DEBUG) -> None:
