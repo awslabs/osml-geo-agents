@@ -3,6 +3,7 @@
 import os
 from typing import Any
 
+from .append_tool import AppendTool
 from .buffer_tool import BufferTool
 from .cluster_tool import ClusterTool
 from .combine_tool import CombineTool
@@ -30,6 +31,7 @@ def create_tool_router() -> ToolRouter:
     tool_registry.register_tool(LoadTool())
     tool_registry.register_tool(UnloadTool())
 
+    tool_registry.register_tool(AppendTool())
     tool_registry.register_tool(BufferTool())
     tool_registry.register_tool(ClusterTool())
     tool_registry.register_tool(CombineTool())

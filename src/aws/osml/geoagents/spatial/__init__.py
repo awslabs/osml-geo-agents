@@ -4,6 +4,7 @@
 # __init__.py file.
 # flake8: noqa
 
+from .append_operation import append_operation
 from .buffer_operation import buffer_operation
 from .cluster_operation import cluster_operation
 from .combine_operation import CombineType, combine_operation

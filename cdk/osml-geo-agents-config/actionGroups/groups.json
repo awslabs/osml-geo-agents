@@ -200,6 +200,25 @@
               "required": false
             }
           }
+        },
+        {
+          "name": "APPEND",
+          "description": "Combine multiple datasets into a single result by appending them.",
+          "parameters": {
+            "datasets": {
+              "type": "array",
+              "description": "A list of georeferences for datasets to combine.",
+              "required": true,
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_format": {
+              "type": "string",
+              "description": "Format for the output file (geojson or parquet), defaults to parquet.",
+              "required": false
+            }
+          }
         }
       ]
     },
