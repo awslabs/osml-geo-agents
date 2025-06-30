@@ -12,7 +12,13 @@ import {
   SubnetType
 } from "aws-cdk-lib/aws-ec2";
 import { DockerImageAsset, Platform } from "aws-cdk-lib/aws-ecr-assets";
-import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+import {
+  PolicyStatement,
+  Role,
+  ServicePrincipal,
+  PolicyDocument,
+  Effect
+} from "aws-cdk-lib/aws-iam";
 import {
   Architecture,
   DockerImageCode,
@@ -22,6 +28,7 @@ import {
 } from "aws-cdk-lib/aws-lambda";
 import { IBucket } from "aws-cdk-lib/aws-s3";
 import { Construct } from "constructs";
+import { NagSuppressions } from "cdk-nag";
 
 /**
  * Properties for configuring an OSML Agent Tool Lambda function.
@@ -95,9 +102,101 @@ export class OSMLAgentToolLambda extends Construct {
   constructor(scope: Construct, id: string, props: OSMLAgentToolLambdaProps) {
     super(scope, id);
 
+    // Create a custom IAM role with specific permissions instead of using managed policies
+    const lambdaRole = new Role(this, "LambdaExecutionRole", {
+      assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
+      description: "Custom execution role for OSML Agent Tool Lambda function",
+      inlinePolicies: {
+        CloudWatchLogsPolicy: new PolicyDocument({
+          statements: [
+            new PolicyStatement({
+              effect: Effect.ALLOW,
+              actions: [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+              ],
+              resources: [
+                `arn:aws:logs:${scope.node.tryGetContext("region") || "*"}:${scope.node.tryGetContext("account") || "*"}:log-group:/aws/lambda/${id}-*`
+              ]
+            })
+          ]
+        }),
+        VPCAccessPolicy: new PolicyDocument({
+          statements: [
+            new PolicyStatement({
+              effect: Effect.ALLOW,
+              actions: [
+                "ec2:CreateNetworkInterface",
+                "ec2:DescribeNetworkInterfaces",
+                "ec2:DeleteNetworkInterface",
+                "ec2:AssignPrivateIpAddresses",
+                "ec2:UnassignPrivateIpAddresses"
+              ],
+              resources: ["*"]
+            })
+          ]
+        }),
+        S3WorkspacePolicy: new PolicyDocument({
+          statements: [
+            new PolicyStatement({
+              effect: Effect.ALLOW,
+              actions: [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject",
+                "s3:ListBucket",
+                "s3:GetBucketLocation"
+              ],
+              resources: [
+                props.workspaceBucket.bucketArn,
+                `${props.workspaceBucket.bucketArn}/*`
+              ]
+            })
+          ]
+        })
+      }
+    });
+
+    // Add CDK-NAG suppressions for necessary wildcard permissions
+    NagSuppressions.addResourceSuppressions(
+      lambdaRole,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "VPC Lambda functions require EC2 network interface permissions which cannot be scoped to specific resources",
+          appliesTo: ["Resource::*"]
+        },
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "CloudWatch Logs permissions are scoped to the specific Lambda function's log group pattern",
+          appliesTo: [
+            `Resource::arn:aws:logs:*:*:log-group:/aws/lambda/${id}-*`
+          ]
+        },
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "S3 bucket permissions are scoped to the specific workspace bucket and its contents",
+          appliesTo: [
+            `Resource::arn:<AWS::Partition>:s3:::${props.workspaceBucket.bucketName}/*`
+          ]
+        },
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "Lambda function default policy contains necessary permissions for VPC and CloudWatch integration",
+          appliesTo: ["Resource::*"]
+        }
+      ],
+      true
+    );
+
     // Create a Docker image asset from the Dockerfile
     const dockerAsset = new DockerImageAsset(this, "ToolImage", {
-      directory: join(__dirname, "../.."),
+      directory: join(__dirname, "../../.."),
       file: "docker/Dockerfile.agents",
       platform: Platform.LINUX_AMD64
     });
@@ -107,6 +206,7 @@ export class OSMLAgentToolLambda extends Construct {
       code: DockerImageCode.fromEcr(dockerAsset.repository, {
         tagOrDigest: dockerAsset.imageTag
       }),
+      role: lambdaRole,
       vpc: props.vpc,
       vpcSubnets: props.vpcSubnets ?? {
         subnetType: SubnetType.PRIVATE_WITH_EGRESS
@@ -129,34 +229,5 @@ export class OSMLAgentToolLambda extends Construct {
         this.function.addToRolePolicy(statement);
       });
     }
-
-    // Add CloudWatch Logs permissions
-    this.function.addToRolePolicy(
-      new PolicyStatement({
-        actions: [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ],
-        resources: ["*"]
-      })
-    );
-
-    this.function.addToRolePolicy(
-      new PolicyStatement({
-        actions: [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:ListBucket",
-          "s3:GetBucketLocation"
-        ],
-        resources: [
-          props.workspaceBucket.bucketArn,
-          `${props.workspaceBucket.bucketArn}/*`
-        ]
-      })
-    );
-    props.workspaceBucket.grantReadWrite(this.function);
   }
 }

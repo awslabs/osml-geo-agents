@@ -45,7 +45,7 @@ def summarize_operation(dataset_georef: Georeference, workspace: Workspace) -> s
                     # Get column metadata if available
                     metadata = ""
                     if "column-descriptions" in gdf.attrs and col in gdf.attrs["column-descriptions"]:
-                        metadata = f" ({gdf.attrs["column-descriptions"][col]})"
+                        metadata = f" ({gdf.attrs['column-descriptions'][col]})"
 
                     # Generate description based on data type
                     if col_type == "object":
