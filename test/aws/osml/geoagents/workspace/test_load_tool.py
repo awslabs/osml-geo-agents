@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from aws.osml.geoagents.bedrock import ToolExecutionError
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, Workspace
 from aws.osml.geoagents.workspace import LoadTool
 
 
@@ -40,16 +40,16 @@ class TestLoadTool(unittest.TestCase):
         self.mock_workspace.s3_transfer_config = {}
         self.mock_workspace.create_item = Mock()
 
-        # Mock the create_item to return a georeference
-        mock_georef = Georeference.from_parts(item_id="abcd1234")
-        self.mock_workspace.create_item.return_value = mock_georef
+        # Mock the create_item to return a data reference
+        mock_data_ref = GeoDataReference.from_stac_reference("stac:abcd1234")
+        self.mock_workspace.create_item.return_value = mock_data_ref
 
         # Call the handler
         result = self.tool.handler(self.event, {}, self.mock_workspace)
 
         # Verify the result
         self.assertIn("Successfully loaded dataset", str(result))
-        self.assertIn(str(mock_georef), str(result))
+        self.assertIn(str(mock_data_ref), str(result))
 
         # Verify S3 client was called correctly
         self.mock_workspace.s3_client.download_file.assert_called_once()
@@ -158,9 +158,9 @@ class TestLoadTool(unittest.TestCase):
         self.mock_workspace.s3_client = Mock()
         self.mock_workspace.s3_transfer_config = {}
 
-        # Mock the create_item to return a georeference
-        mock_georef = Georeference.from_parts(item_id="abcd1234")
-        self.mock_workspace.create_item = Mock(return_value=mock_georef)
+        # Mock the create_item to return a data reference
+        mock_data_ref = GeoDataReference.from_stac_reference("stac:abcd1234")
+        self.mock_workspace.create_item = Mock(return_value=mock_data_ref)
 
         # Call the handler
         result = self.tool.handler(event_no_name, {}, self.mock_workspace)
@@ -192,9 +192,9 @@ class TestLoadTool(unittest.TestCase):
         self.mock_workspace.s3_client = Mock()
         self.mock_workspace.s3_transfer_config = {}
 
-        # Mock the create_item to return a georeference
-        mock_georef = Georeference.from_parts(item_id="abcd1234")
-        self.mock_workspace.create_item = Mock(return_value=mock_georef)
+        # Mock the create_item to return a data reference
+        mock_data_ref = GeoDataReference.from_stac_reference("stac:abcd1234")
+        self.mock_workspace.create_item = Mock(return_value=mock_data_ref)
 
         # Call the handler
         self.tool.handler(self.event, {}, self.mock_workspace)

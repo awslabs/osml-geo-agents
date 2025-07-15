@@ -2,27 +2,37 @@
 
 import logging
 
-from ..common import Georeference, LocalAssets, Workspace
+from ..common import GeoDataReference, LocalAssets, Workspace
+from .spatial_utils import create_stac_item_for_dataset
 
 logger = logging.getLogger(__name__)
 
 
-def summarize_operation(dataset_georef: Georeference, workspace: Workspace) -> str:
+def summarize_operation(dataset_reference: GeoDataReference, workspace: Workspace) -> str:
     """
     Generate a natural language description of columns in a geodataset.
 
-    :param dataset_georef: Georeference for the dataset to summarize
+    :param dataset_reference: GeoDataReference for the dataset to summarize
     :param workspace: Workspace for storing assets
     :return: A formatted string with the dataset summary
     :raises ValueError: If summarization fails
     """
     try:
         # Use context manager to handle local assets
-        with LocalAssets(dataset_georef, workspace) as (item, local_asset_paths):
+        with LocalAssets(dataset_reference, workspace) as (item, local_asset_paths):
             # Select the assets to process and load them into memory
             selected_asset_key = next(iter(local_asset_paths))
             local_dataset_path = local_asset_paths[selected_asset_key]
             gdf = workspace.read_geo_data_frame(str(local_dataset_path))
+
+            # If item is None, create a new item from the GeoDataFrame
+            if item is None:
+                item = create_stac_item_for_dataset(
+                    gdf,
+                    str(local_dataset_path),
+                    title=f"Dataset from {dataset_reference}",
+                    description=f"Dataset loaded from {dataset_reference}",
+                )
 
             # Get the bounding box
             bounds = gdf.total_bounds
@@ -65,7 +75,7 @@ def summarize_operation(dataset_georef: Georeference, workspace: Workspace) -> s
 
         # Generate the final summary text
         summary = (
-            f"Dataset {dataset_georef} contains {len(gdf)} features.\n"
+            f"Dataset {dataset_reference} contains {len(gdf)} features.\n"
             f"- {bbox_desc}\n"
             "Columns:\n" + "\n".join(f"- {desc}" for desc in column_descriptions)
         )

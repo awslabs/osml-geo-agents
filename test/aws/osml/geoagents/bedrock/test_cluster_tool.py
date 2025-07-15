@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from aws.osml.geoagents.bedrock import ClusterTool, ToolExecutionError
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, Workspace
 
 
 class TestClusterTool(unittest.TestCase):
@@ -30,7 +30,7 @@ class TestClusterTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "CLUSTER",
             "parameters": [
-                {"name": "dataset", "value": "georef:1234", "type": "string"},
+                {"name": "dataset", "value": "stac:1234", "type": "string"},
                 {"name": "distance", "value": "100", "type": "string"},
             ],
             "messageVersion": "1.0",
@@ -46,8 +46,8 @@ class TestClusterTool(unittest.TestCase):
         """Test successful clustering with valid parameters."""
         # Mock the cluster_operation function to return a predefined result
         mock_cluster_operation.return_value = (
-            "Found 3 clusters in dataset georef:1234 using a distance threshold of 100.0 meters. "
-            "\nAll clusters are available in georef:CLUSTER-20250612 with the following assets:\n"
+            "Found 3 clusters in dataset stac:1234 using a distance threshold of 100.0 meters. "
+            "\nAll clusters are available in stac:CLUSTER-20250612 with the following assets:\n"
             "- cluster-0: 4 features\n"
             "- cluster-1: 5 features\n"
             "- cluster-2: 3 features\n"
@@ -58,7 +58,7 @@ class TestClusterTool(unittest.TestCase):
 
         # Verify cluster_operation was called with the correct parameters
         mock_cluster_operation.assert_called_once_with(
-            dataset_georef=Georeference("georef:1234"),
+            dataset_georef=GeoDataReference("stac:1234"),
             distance_meters=100.0,
             max_clusters=None,
             workspace=self.mock_workspace,
@@ -71,8 +71,8 @@ class TestClusterTool(unittest.TestCase):
 
         # Verify the result contains information about clusters
         self.assertIn("Found 3 clusters", result_text)
-        self.assertIn("georef:1234", result_text)
-        self.assertIn("georef:CLUSTER-20250612", result_text)
+        self.assertIn("stac:1234", result_text)
+        self.assertIn("stac:CLUSTER-20250612", result_text)
         self.assertIn("cluster-0: 4 features", result_text)
         self.assertIn("cluster-1: 5 features", result_text)
         self.assertIn("cluster-2: 3 features", result_text)
@@ -87,9 +87,9 @@ class TestClusterTool(unittest.TestCase):
 
         # Mock the cluster_operation function to return a predefined result
         mock_cluster_operation.return_value = (
-            "Found 3 clusters in dataset georef:1234 using a distance threshold of 100.0 meters. "
+            "Found 3 clusters in dataset stac:1234 using a distance threshold of 100.0 meters. "
             "Saved the 2 largest clusters as requested. "
-            "\nAll clusters are available in georef:CLUSTER-20250612 with the following assets:\n"
+            "\nAll clusters are available in stac:CLUSTER-20250612 with the following assets:\n"
             "- cluster-1: 5 features\n"
             "- cluster-0: 4 features\n"
         )
@@ -99,7 +99,7 @@ class TestClusterTool(unittest.TestCase):
 
         # Verify cluster_operation was called with the correct parameters
         mock_cluster_operation.assert_called_once_with(
-            dataset_georef=Georeference("georef:1234"),
+            dataset_georef=GeoDataReference("stac:1234"),
             distance_meters=100.0,
             max_clusters=2,
             workspace=self.mock_workspace,
@@ -122,8 +122,8 @@ class TestClusterTool(unittest.TestCase):
         """Test handling of datasets where no clusters are found."""
         # Mock the cluster_operation function to return a predefined result with no clusters
         mock_cluster_operation.return_value = (
-            "Found 0 clusters in dataset georef:1234 using a distance threshold of 100.0 meters. "
-            "\nAll clusters are available in georef:CLUSTER-20250612 with the following assets:\n"
+            "Found 0 clusters in dataset stac:1234 using a distance threshold of 100.0 meters. "
+            "\nAll clusters are available in stac:CLUSTER-20250612 with the following assets:\n"
         )
 
         # Call the handler
@@ -131,7 +131,7 @@ class TestClusterTool(unittest.TestCase):
 
         # Verify cluster_operation was called with the correct parameters
         mock_cluster_operation.assert_called_once_with(
-            dataset_georef=Georeference("georef:1234"),
+            dataset_georef=GeoDataReference("stac:1234"),
             distance_meters=100.0,
             max_clusters=None,
             workspace=self.mock_workspace,
@@ -153,7 +153,7 @@ class TestClusterTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "CLUSTER",
             "parameters": [
-                {"name": "dataset", "value": "georef:1234", "type": "string"},
+                {"name": "dataset", "value": "stac:1234", "type": "string"},
                 # distance parameter is missing
             ],
         }
@@ -174,7 +174,7 @@ class TestClusterTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "CLUSTER",
             "parameters": [
-                {"name": "dataset", "value": "georef:1234", "type": "string"},
+                {"name": "dataset", "value": "stac:1234", "type": "string"},
                 {"name": "distance", "value": "not_a_number", "type": "string"},
             ],
         }

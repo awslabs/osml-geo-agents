@@ -77,8 +77,8 @@ class TestWorkspace(unittest.TestCase):
         local_assets = {"local-test-asset": test_asset_path}
 
         # Publish the item to the local workspace
-        georef = self.workspace.create_item(sample_item, local_assets)
-        assert georef is not None
+        stac_ref = self.workspace.create_item(sample_item, local_assets)
+        assert stac_ref is not None
 
         # Verify the item was published
         item_path = Path(self.prefix) / sample_item.id / "item.json"
@@ -89,7 +89,7 @@ class TestWorkspace(unittest.TestCase):
         assert self.s3fs.exists(asset_path)
 
         # Test get_item
-        retrieved_item = self.workspace.get_item(georef)
+        retrieved_item = self.workspace.get_item(stac_ref)
         assert retrieved_item.id == sample_item.id
         assert "local-test-asset" in retrieved_item.assets
 
@@ -99,8 +99,8 @@ class TestWorkspace(unittest.TestCase):
         assert items[0].item_id == sample_item.id
 
         # Test delete_item
-        self.workspace.delete_item(georef)
-        assert not self.s3fs.exists(Path(self.prefix / sample_item.id))
+        self.workspace.delete_item(stac_ref)
+        assert not self.s3fs.exists(str(Path(self.prefix) / sample_item.id))
 
     def test_local_filesystem(self):
         """Test using a local filesystem"""
@@ -116,8 +116,8 @@ class TestWorkspace(unittest.TestCase):
         local_assets = {"local-test-asset": test_asset_path}
 
         # Publish the item to the local workspace
-        georef = self.local_workspace.create_item(sample_item, local_assets)
-        assert georef is not None
+        stac_ref = self.local_workspace.create_item(sample_item, local_assets)
+        assert stac_ref is not None
 
         # Verify the item was published
         item_path = Path(self.local_workspace_path) / sample_item.id / "item.json"
@@ -129,7 +129,7 @@ class TestWorkspace(unittest.TestCase):
         assert asset_path.read_bytes() == test_content
 
         # Test get_item
-        retrieved_item = self.local_workspace.get_item(georef)
+        retrieved_item = self.local_workspace.get_item(stac_ref)
         assert retrieved_item.id == sample_item.id
         assert "local-test-asset" in retrieved_item.assets
 
@@ -139,8 +139,8 @@ class TestWorkspace(unittest.TestCase):
         assert items[0].item_id == sample_item.id
 
         # Test delete_item
-        self.local_workspace.delete_item(georef)
-        assert not Path(self.local_workspace_path / sample_item.id).exists()
+        self.local_workspace.delete_item(stac_ref)
+        assert not Path(str(self.local_workspace_path) + "/" + sample_item.id).exists()
 
     def test_is_parquet_file_true(self):
         """Test is_parquet_file with a valid Parquet file."""
@@ -295,6 +295,23 @@ class TestWorkspace(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.local_workspace.read_geo_data_frame(file_path)
 
+    def test_read_geo_data_frame_wkt(self):
+        """Test read_geo_data_frame with a WKT file."""
+        # Create a WKT file with a simple polygon
+        file_path = os.path.join(self.tmp_path, "test.wkt")
+        wkt_content = "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))"
+        with open(file_path, "w") as f:
+            f.write(wkt_content)
+
+        # Test the function
+        result = self.local_workspace.read_geo_data_frame(file_path)
+
+        # Verify the result
+        self.assertIsInstance(result, gpd.GeoDataFrame)
+        self.assertEqual(len(result), 1)  # Should have 1 row
+        self.assertEqual(result.crs, "EPSG:4326")  # CRS should be set to EPSG:4326
+        self.assertEqual(result.geometry[0].wkt, wkt_content)  # Geometry should match input
+
     def test_geo_data_frame_io_geoparquet(self):
         """Test write_geo_data_frame with GeoParquet format."""
         # Create a sample GeoDataFrame
@@ -339,3 +356,50 @@ class TestWorkspace(unittest.TestCase):
         self.assertTrue("geometry" in result.columns)
         self.assertTrue("id" in result.columns)
         self.assertTrue("value" in result.columns)
+
+    def test_stac_reference_with_collections(self):
+        """Test workspace with STACReference that includes collections."""
+        # Create a sample STAC item
+        sample_item = self.create_sample_stac_item()
+
+        # Create a test asset file
+        test_asset_path = Path(self.tmp_path, "collection-test-asset.txt")
+        test_content = b"collection test file content"
+        with open(test_asset_path, "wb") as out:
+            out.write(test_content)
+
+        local_assets = {"collection-test-asset": test_asset_path}
+        collections = ["collection1", "collection2"]
+
+        # Publish the item to the local workspace with collections
+        stac_ref = self.local_workspace.create_item(sample_item, local_assets, collections=collections)
+        assert stac_ref is not None
+
+        # Verify the collections in the returned STACReference
+        self.assertEqual(stac_ref.collections, collections)
+        self.assertEqual(stac_ref.item_id, sample_item.id)
+
+        # Verify the item was published in the correct collection path
+        collections_path = "/".join(collections)
+        item_path = Path(self.local_workspace_path) / collections_path / sample_item.id / "item.json"
+        assert item_path.exists()
+
+        # Verify the asset was published in the correct collection path
+        asset_path = (
+            Path(self.local_workspace_path)
+            / collections_path
+            / sample_item.id
+            / "collection-test-asset"
+            / test_asset_path.name
+        )
+        assert asset_path.exists()
+        assert asset_path.read_bytes() == test_content
+
+        # Test get_item with collections
+        retrieved_item = self.local_workspace.get_item(stac_ref)
+        assert retrieved_item.id == sample_item.id
+        assert "collection-test-asset" in retrieved_item.assets
+
+        # Test delete_item with collections
+        self.local_workspace.delete_item(stac_ref)
+        assert not Path(str(self.local_workspace_path) + "/" + collections_path + "/" + sample_item.id).exists()

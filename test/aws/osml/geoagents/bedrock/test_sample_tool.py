@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from aws.osml.geoagents.bedrock import SampleTool, ToolExecutionError
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, Workspace
 
 
 class TestSampleTool(unittest.TestCase):
@@ -36,7 +36,7 @@ class TestSampleTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "SAMPLE",
             "parameters": [
-                {"name": "dataset", "value": "georef:test-dataset", "type": "string"},
+                {"name": "dataset", "value": "stac:test-dataset", "type": "string"},
                 {"name": "number_of_features", "value": "2", "type": "number"},
             ],
         }
@@ -45,7 +45,7 @@ class TestSampleTool(unittest.TestCase):
 
         # Verify sample_operation was called with the correct parameters
         mock_sample_operation.assert_called_once_with(
-            dataset_georef=Georeference("georef:test-dataset"), number_of_features=2, workspace=self.workspace
+            dataset_reference=GeoDataReference("stac:test-dataset"), number_of_features=2, workspace=self.workspace
         )
 
         # Verify the response contains the mocked result
@@ -62,7 +62,7 @@ class TestSampleTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "SAMPLE",
             "parameters": [
-                {"name": "dataset", "value": "georef:test-dataset", "type": "string"},
+                {"name": "dataset", "value": "stac:test-dataset", "type": "string"},
             ],
         }
 
@@ -70,7 +70,7 @@ class TestSampleTool(unittest.TestCase):
 
         # Verify sample_operation was called with None for number_of_features
         mock_sample_operation.assert_called_once_with(
-            dataset_georef=Georeference("georef:test-dataset"), number_of_features=None, workspace=self.workspace
+            dataset_reference=GeoDataReference("stac:test-dataset"), number_of_features=None, workspace=self.workspace
         )
 
         # Verify the response contains the mocked result

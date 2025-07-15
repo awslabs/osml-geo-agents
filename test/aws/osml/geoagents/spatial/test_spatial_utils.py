@@ -9,10 +9,11 @@ import shapely
 from pystac import Item
 from shapely.geometry import Point
 
-from aws.osml.geoagents.common import Georeference
+from aws.osml.geoagents.common import GeoDataReference
 from aws.osml.geoagents.spatial.spatial_utils import (
     create_derived_stac_item,
     create_length_limited_wkt,
+    create_stac_item_for_dataset,
     validate_dataset_crs,
 )
 
@@ -29,7 +30,7 @@ class TestSpatialUtils(unittest.TestCase):
         gdf.crs = None
 
         # Create a mock georeference
-        georef = Mock(spec=Georeference)
+        georef = Mock(spec=GeoDataReference)
 
         # Call the function
         validate_dataset_crs(gdf, georef)
@@ -44,7 +45,7 @@ class TestSpatialUtils(unittest.TestCase):
         gdf.set_crs("EPSG:4326", inplace=True)
 
         # Create a mock georeference
-        georef = Mock(spec=Georeference)
+        georef = Mock(spec=GeoDataReference)
 
         # Call the function
         validate_dataset_crs(gdf, georef)
@@ -59,7 +60,7 @@ class TestSpatialUtils(unittest.TestCase):
         gdf.set_crs("EPSG:3857", inplace=True)
 
         # Create a mock georeference
-        georef = Mock(spec=Georeference)
+        georef = Mock(spec=GeoDataReference)
 
         # Call the function and check that it raises a ValueError
         with self.assertRaises(ValueError):
@@ -81,8 +82,10 @@ class TestSpatialUtils(unittest.TestCase):
         )
 
         # Create test georeference
-        derived_georef = Mock(spec=Georeference)
-        derived_georef.item_id = "derived"
+        derived_georef = Mock(spec=GeoDataReference)
+        derived_georef.reference_string = "stac:derived"
+        # Add the is_stac_reference method to the mock
+        derived_georef.is_stac_reference.return_value = True
 
         # Test creation of derived item
         derived_item = create_derived_stac_item(
@@ -142,6 +145,82 @@ class TestSpatialUtils(unittest.TestCase):
         # Try with an impossibly small limit
         with self.assertRaises(ValueError):
             create_length_limited_wkt(complex_polygon, 5)
+
+    def test_create_stac_item_for_dataset_basic(self):
+        """Test creating a STAC Item from a GeoDataFrame with no datetime columns."""
+        # Create a sample GeoDataFrame
+        gdf = gpd.GeoDataFrame({"geometry": [Point(0, 0), Point(1, 1)], "data": [1, 2]}, crs="EPSG:4326")
+
+        # Create a STAC Item
+        path = "/path/to/data.geojson"
+        title = "Test Dataset"
+        description = "A test dataset"
+
+        item = create_stac_item_for_dataset(gdf, path, title, description)
+
+        # Verify the item properties
+        self.assertEqual(item.properties["title"], title)
+        self.assertEqual(item.properties["description"], description)
+        self.assertEqual(item.bbox, [0.0, 0.0, 1.0, 1.0])
+        self.assertIsNotNone(item.datetime)  # Should use current time
+        # Check that start_datetime and end_datetime are not in properties
+        self.assertNotIn("start_datetime", item.properties)
+        self.assertNotIn("end_datetime", item.properties)
+
+        # Verify the asset was added
+        self.assertIn("data", item.assets)
+        self.assertEqual(item.assets["data"].href, path)
+        self.assertEqual(item.assets["data"].media_type, "application/geo+json")
+
+    def test_create_stac_item_for_dataset_with_datetime(self):
+        """Test creating a STAC Item from a GeoDataFrame with datetime columns."""
+        import pandas as pd
+
+        # Create a sample GeoDataFrame with a datetime column
+        dates = pd.date_range(start="2023-01-01", periods=3)
+        gdf = gpd.GeoDataFrame(
+            {"geometry": [Point(0, 0), Point(1, 1), Point(2, 2)], "data": [1, 2, 3], "date": dates}, crs="EPSG:4326"
+        )
+
+        # Create a STAC Item
+        path = "/path/to/data.parquet"
+
+        item = create_stac_item_for_dataset(gdf, path)
+
+        # Verify datetime properties
+        # When using a date range, the main datetime should be None
+        self.assertIsNone(item.datetime)
+
+        # Check that the item has datetime information
+        # We don't check the exact values since the conversion between pandas Timestamp
+        # and datetime objects might introduce small differences
+        self.assertIsNotNone(item.properties.get("start_datetime"))
+        self.assertIsNotNone(item.properties.get("end_datetime"))
+
+        # Verify the asset was added with correct media type
+        self.assertEqual(item.assets["data"].media_type, "application/octet-stream")
+
+    def test_create_stac_item_for_dataset_same_datetime(self):
+        """Test creating a STAC Item when all datetime values are the same."""
+        import pandas as pd
+
+        # Create a sample GeoDataFrame with a datetime column where all values are the same
+        same_date = pd.Timestamp("2023-01-01")
+        gdf = gpd.GeoDataFrame(
+            {"geometry": [Point(0, 0), Point(1, 1)], "data": [1, 2], "date": [same_date, same_date]}, crs="EPSG:4326"
+        )
+
+        # Create a STAC Item
+        path = "/path/to/data.geojson"
+
+        item = create_stac_item_for_dataset(gdf, path)
+
+        # Verify datetime properties
+        self.assertIsNotNone(item.datetime)
+
+        # When using a single datetime, start_datetime and end_datetime should not be set
+        self.assertNotIn("start_datetime", item.properties)
+        self.assertNotIn("end_datetime", item.properties)
 
 
 if __name__ == "__main__":

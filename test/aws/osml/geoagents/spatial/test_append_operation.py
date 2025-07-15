@@ -8,7 +8,7 @@ import geopandas as gpd
 import shapely
 from pystac import Item
 
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, STACReference, Workspace
 from aws.osml.geoagents.spatial.append_operation import append_operation
 
 
@@ -19,10 +19,18 @@ class TestAppendOperation(unittest.TestCase):
         self.mock_workspace = Mock(spec=Workspace)
         self.mock_workspace.session_local_path = "/tmp"
 
-        # Create real Georeference instances
-        self.dataset1_georef = Georeference.from_parts("test-dataset1", "data")
-        self.dataset2_georef = Georeference.from_parts("test-dataset2", "data")
-        self.dataset3_georef = Georeference.from_parts("test-dataset3", "data")
+        # Create mock GeoDataReference instances
+        self.dataset1_reference = Mock(spec=GeoDataReference)
+        self.dataset1_reference.reference_string = "stac:test-dataset1#data"
+        self.dataset1_reference.is_stac_reference = Mock(return_value=True)
+
+        self.dataset2_reference = Mock(spec=GeoDataReference)
+        self.dataset2_reference.reference_string = "stac:test-dataset2#data"
+        self.dataset2_reference.is_stac_reference = Mock(return_value=True)
+
+        self.dataset3_reference = Mock(spec=GeoDataReference)
+        self.dataset3_reference.reference_string = "stac:test-dataset3#data"
+        self.dataset3_reference.is_stac_reference = Mock(return_value=True)
 
         # Create a mock function name
         self.function_name = "APPEND"
@@ -50,7 +58,11 @@ class TestAppendOperation(unittest.TestCase):
 
     @patch("aws.osml.geoagents.spatial.append_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.append_operation.create_derived_stac_item")
-    def test_append_operation_successful(self, mock_create_derived_stac_item, mock_local_assets):
+    @patch("aws.osml.geoagents.spatial.append_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.append_operation.STACReference")
+    def test_append_operation_successful(
+        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+    ):
         """Test successful appending of multiple geodataframes."""
         # Create real geodataframes
         gdf1, gdf2, gdf3 = self.create_test_geodataframes()
@@ -82,9 +94,17 @@ class TestAppendOperation(unittest.TestCase):
         mock_derived_item = Mock(spec=Item)
         mock_create_derived_stac_item.return_value = mock_derived_item
 
+        # Set up mock for create_stac_item_for_dataset
+        mock_create_stac_item_for_dataset.return_value = mock_item1
+
+        # Set up mock for STACReference
+        mock_stac_ref = Mock(spec=STACReference)
+        mock_stac_ref.item_id = "test-item-id"
+        mock_stac_reference.new_from_timestamp.return_value = mock_stac_ref
+
         # Call the operation function
         result = append_operation(
-            dataset_georefs=[self.dataset1_georef, self.dataset2_georef, self.dataset3_georef],
+            dataset_references=[self.dataset1_reference, self.dataset2_reference, self.dataset3_reference],
             workspace=self.mock_workspace,
             function_name=self.function_name,
         )
@@ -109,7 +129,11 @@ class TestAppendOperation(unittest.TestCase):
 
     @patch("aws.osml.geoagents.spatial.append_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.append_operation.create_derived_stac_item")
-    def test_append_operation_single_dataset(self, mock_create_derived_stac_item, mock_local_assets):
+    @patch("aws.osml.geoagents.spatial.append_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.append_operation.STACReference")
+    def test_append_operation_single_dataset(
+        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+    ):
         """Test appending a single dataset (should return the dataset unchanged)."""
         # Create real geodataframes
         gdf1, _, _ = self.create_test_geodataframes()
@@ -129,9 +153,17 @@ class TestAppendOperation(unittest.TestCase):
         mock_derived_item = Mock(spec=Item)
         mock_create_derived_stac_item.return_value = mock_derived_item
 
+        # Set up mock for create_stac_item_for_dataset
+        mock_create_stac_item_for_dataset.return_value = mock_item1
+
+        # Set up mock for STACReference
+        mock_stac_ref = Mock(spec=STACReference)
+        mock_stac_ref.item_id = "test-item-id"
+        mock_stac_reference.new_from_timestamp.return_value = mock_stac_ref
+
         # Call the operation function with a single dataset
         result = append_operation(
-            dataset_georefs=[self.dataset1_georef],
+            dataset_references=[self.dataset1_reference],
             workspace=self.mock_workspace,
             function_name=self.function_name,
         )
@@ -158,13 +190,14 @@ class TestAppendOperation(unittest.TestCase):
         # Call the operation function with an empty list
         with self.assertRaises(ValueError):
             append_operation(
-                dataset_georefs=[],
+                dataset_references=[],
                 workspace=self.mock_workspace,
                 function_name=self.function_name,
             )
 
     @patch("aws.osml.geoagents.spatial.append_operation.LocalAssets")
-    def test_append_operation_incompatible_crs(self, mock_local_assets):
+    @patch("aws.osml.geoagents.spatial.append_operation.create_stac_item_for_dataset")
+    def test_append_operation_incompatible_crs(self, mock_create_stac_item_for_dataset, mock_local_assets):
         """Test appending datasets with incompatible CRS."""
         # Create real geodataframes with different CRS
         gdf1, _, _ = self.create_test_geodataframes()
@@ -193,10 +226,13 @@ class TestAppendOperation(unittest.TestCase):
         # Configure read_geo_data_frame to return different GeoDataFrames on each call
         self.mock_workspace.read_geo_data_frame.side_effect = [gdf1, gdf2]
 
+        # Set up mock for create_stac_item_for_dataset
+        mock_create_stac_item_for_dataset.side_effect = [mock_item1, mock_item2]
+
         # Call the operation function with incompatible CRS
         with self.assertRaises(ValueError):
             append_operation(
-                dataset_georefs=[self.dataset1_georef, self.dataset2_georef],
+                dataset_references=[self.dataset1_reference, self.dataset2_reference],
                 workspace=self.mock_workspace,
                 function_name=self.function_name,
             )

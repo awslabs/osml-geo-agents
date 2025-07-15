@@ -17,7 +17,6 @@ class GeoDataReferenceType(Enum):
 
     WKT = "wkt"
     FILE_PATH = "file_path"
-    S3_URL = "s3_url"
     STAC = "stac"
 
 
@@ -27,8 +26,7 @@ class GeoDataReference:
 
     Supports:
     - Well-Known Text (WKT) literals
-    - Local file paths
-    - S3 URLs
+    - File paths (including local paths and S3 URLs)
     - STAC references (stac:)
 
     This class provides a unified way to reference geospatial data from different sources.
@@ -56,14 +54,13 @@ class GeoDataReference:
         """
         if reference.startswith("stac:"):
             return GeoDataReferenceType.STAC
-        elif reference.startswith("s3://"):
-            return GeoDataReferenceType.S3_URL
         elif reference.upper().startswith(
             ("POINT", "LINESTRING", "POLYGON", "MULTIPOINT", "MULTILINESTRING", "MULTIPOLYGON", "GEOMETRYCOLLECTION")
         ):
             return GeoDataReferenceType.WKT
         else:
             # Assume it's a file path if it doesn't match other patterns
+            # This includes S3 URLs (s3://...)
             return GeoDataReferenceType.FILE_PATH
 
     def _validate_reference(self, reference: str) -> None:
@@ -87,10 +84,8 @@ class GeoDataReference:
                 logger.debug(f"Invalid STAC reference: {reference}", exc_info=True)
                 raise ValueError(f"Invalid STAC reference: {e}")
 
-        elif self.reference_type == GeoDataReferenceType.S3_URL:
-            if not reference.startswith("s3://"):
-                raise ValueError("S3 URL must start with 's3://'")
-
+        # For FILE_PATH type, we do basic validation for S3 URLs
+        elif self.reference_type == GeoDataReferenceType.FILE_PATH and reference.startswith("s3://"):
             # Basic validation of S3 URL format
             parts = reference[5:].split("/", 1)
             if len(parts) < 2 or not parts[0]:
@@ -111,14 +106,6 @@ class GeoDataReference:
         :return: True if the reference is a file path, False otherwise
         """
         return self.reference_type == GeoDataReferenceType.FILE_PATH
-
-    def is_s3_url(self) -> bool:
-        """
-        Check if the reference is an S3 URL.
-
-        :return: True if the reference is an S3 URL, False otherwise
-        """
-        return self.reference_type == GeoDataReferenceType.S3_URL
 
     def is_stac_reference(self) -> bool:
         """
@@ -150,19 +137,6 @@ class GeoDataReference:
         return cls(str(path))
 
     @classmethod
-    def from_s3_url(cls, url: str) -> "GeoDataReference":
-        """
-        Create a GeoDataReference from an S3 URL.
-
-        :param url: S3 URL (s3://bucket/key)
-        :return: GeoDataReference object
-        :raises ValueError: If the URL is not a valid S3 URL
-        """
-        if not url.startswith("s3://"):
-            raise ValueError("S3 URL must start with 's3://'")
-        return cls(url)
-
-    @classmethod
     def from_stac_reference(cls, stac_ref: Union[STACReference, str]) -> "GeoDataReference":
         """
         Create a GeoDataReference from a STAC reference.
@@ -178,3 +152,24 @@ class GeoDataReference:
     def __str__(self) -> str:
         """Return the string representation of the reference."""
         return self.reference_string
+
+    def __eq__(self, other: object) -> bool:
+        """
+        Compare this GeoDataReference with another object for equality.
+
+        Two GeoDataReference objects are considered equal if they have the same reference_string.
+
+        :param other: The object to compare with
+        :return: True if the objects are equal, False otherwise
+        """
+        if not isinstance(other, GeoDataReference):
+            return NotImplemented
+        return self.reference_string == other.reference_string
+
+    def __hash__(self) -> int:
+        """
+        Return a hash value for this GeoDataReference.
+
+        :return: Hash value based on the reference_string
+        """
+        return hash(self.reference_string)

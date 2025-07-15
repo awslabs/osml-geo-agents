@@ -10,11 +10,11 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from shapely import from_wkt
 
-from ..common import Georeference, Workspace
+from ..common import GeoDataReference, Workspace
 from ..spatial.append_operation import append_operation
 from ..spatial.buffer_operation import buffer_operation
 from ..spatial.cluster_operation import cluster_operation
-from ..spatial.combine_operation import combine_operation
+from ..spatial.combine_operation import CombineType, combine_operation
 from ..spatial.correlation_operation import CorrelationTypes, correlation_operation
 from ..spatial.filter_operation import filter_operation
 from ..spatial.sample_operation import sample_operation
@@ -59,7 +59,7 @@ def buffer_geometry(
 
 @mcp.tool()
 def cluster_features(
-    dataset: str = Field(description="Georeference string for the dataset"),
+    dataset: str = Field(description="GeoDataReference string for the dataset (STAC reference, WKT string, or local path)"),
     distance: float = Field(description="Distance threshold in meters for clustering"),
     max_clusters: Optional[int] = Field(
         description="Optional maximum number of clusters to return (largest first)", default=None
@@ -72,11 +72,11 @@ def cluster_features(
     logger.info(f"Clustering features in {dataset} with distance {distance}m")
 
     try:
-        # Parse the dataset georeference
-        dataset_georef = Georeference(dataset)
+        # Parse the dataset reference
+        dataset_ref = GeoDataReference(dataset)
 
         # Call the cluster operation
-        result = cluster_operation(dataset_georef, distance, max_clusters, workspace, "cluster_features", output_format)
+        result = cluster_operation(dataset_ref, distance, max_clusters, workspace, "cluster_features", output_format)
 
         return result
     except Exception as e:
@@ -86,8 +86,12 @@ def cluster_features(
 
 @mcp.tool()
 def correlate_datasets(
-    dataset1: str = Field(description="Georeference string for the first dataset"),
-    dataset2: str = Field(description="Georeference string for the second dataset"),
+    dataset1: str = Field(
+        description="GeoDataReference string for the first dataset (STAC reference, WKT string, or local path)"
+    ),
+    dataset2: str = Field(
+        description="GeoDataReference string for the second dataset (STAC reference, WKT string, or local path)"
+    ),
     correlation_type: str = Field(
         description='Type of correlation to perform ("intersection" or "difference")', default="intersection"
     ),
@@ -108,9 +112,9 @@ def correlate_datasets(
     logger.info(f"Correlating datasets {dataset1} and {dataset2}")
 
     try:
-        # Parse the dataset georeferences
-        dataset1_georef = Georeference(dataset1)
-        dataset2_georef = Georeference(dataset2)
+        # Parse the dataset references
+        dataset1_ref = GeoDataReference(dataset1)
+        dataset2_ref = GeoDataReference(dataset2)
 
         # Convert correlation_type string to enum
         corr_type = (
@@ -119,8 +123,8 @@ def correlate_datasets(
 
         # Call the correlation operation
         result = correlation_operation(
-            dataset1_georef,
-            dataset2_georef,
+            dataset1_ref,
+            dataset2_ref,
             corr_type,
             distance,
             dataset1_geo_column,
@@ -138,7 +142,9 @@ def correlate_datasets(
 
 @mcp.tool()
 def filter_dataset(
-    dataset: str = Field(description="Georeference string for the dataset to filter"),
+    dataset: str = Field(
+        description="GeoDataReference string for the dataset to filter (STAC reference, WKT string, or local path)"
+    ),
     filter: str = Field(description="WKT string representation of the geometry to use as a filter"),
     output_format: str = Field(description="Format for the output file (geojson or parquet)", default="parquet"),
 ) -> str:
@@ -148,14 +154,14 @@ def filter_dataset(
     logger.info(f"Filtering dataset {dataset}")
 
     try:
-        # Parse the dataset georeference
-        dataset_georef = Georeference(dataset)
+        # Parse the dataset reference
+        dataset_ref = GeoDataReference(dataset)
 
         # Convert filter WKT string to Shapely geometry
         filter_geometry = from_wkt(filter)
 
         # Call the filter operation
-        result = filter_operation(dataset_georef, filter_geometry, workspace, "filter_dataset", output_format)
+        result = filter_operation(dataset_ref, filter_geometry, workspace, "filter_dataset", output_format)
 
         return result
     except Exception as e:
@@ -165,7 +171,9 @@ def filter_dataset(
 
 @mcp.tool()
 def sample_features(
-    dataset: str = Field(description="Georeference string for the dataset to sample"),
+    dataset: str = Field(
+        description="GeoDataReference string for the dataset to sample (STAC reference, WKT string, or local path)"
+    ),
     number_of_features: int = Field(description="Number of features to sample", default=10),
 ) -> str:
     """
@@ -174,11 +182,11 @@ def sample_features(
     logger.info(f"Sampling {number_of_features} features from {dataset}")
 
     try:
-        # Parse the dataset georeference
-        dataset_georef = Georeference(dataset)
+        # Parse the dataset reference
+        dataset_ref = GeoDataReference(dataset)
 
         # Call the sample operation
-        result = sample_operation(dataset_georef, number_of_features, workspace)
+        result = sample_operation(dataset_ref, number_of_features, workspace)
 
         return result
     except Exception as e:
@@ -187,18 +195,22 @@ def sample_features(
 
 
 @mcp.tool()
-def summarize_dataset(dataset: str = Field(description="Georeference string for the dataset to summarize")) -> str:
+def summarize_dataset(
+    dataset: str = Field(
+        description="GeoDataReference string for the dataset to summarize (STAC reference, WKT string, or local path)"
+    ),
+) -> str:
     """
     Generate a natural language description of columns in a geodataset.
     """
     logger.info(f"Summarizing dataset {dataset}")
 
     try:
-        # Parse the dataset georeference
-        dataset_georef = Georeference(dataset)
+        # Parse the dataset reference
+        dataset_ref = GeoDataReference(dataset)
 
         # Call the summarize operation
-        result = summarize_operation(dataset_georef, workspace)
+        result = summarize_operation(dataset_ref, workspace)
 
         return result
     except Exception as e:
@@ -246,8 +258,16 @@ def combine_geometries(
         shapely_geometry1 = from_wkt(geometry1)
         shapely_geometry2 = from_wkt(geometry2)
 
-        # Call the combine operation
-        result = combine_operation(shapely_geometry1, shapely_geometry2, operation)
+        # Validate operation type
+        valid_operations = ["union", "intersection", "difference"]
+        operation_lower = operation.lower()
+        if operation_lower not in valid_operations:
+            return f"Error: Invalid operation '{operation}'. Must be one of: {', '.join(valid_operations)}"
+
+        # Call the combine operation with validated operation type
+        # Use type assertion to convert the validated string to CombineType
+        operation_type: CombineType = operation_lower  # type: ignore
+        result = combine_operation(shapely_geometry1, shapely_geometry2, operation_type)
 
         return result
     except Exception as e:
@@ -257,7 +277,9 @@ def combine_geometries(
 
 @mcp.tool()
 def append_datasets(
-    datasets: list[str] = Field(description="List of georeference strings for datasets to combine"),
+    datasets: list[str] = Field(
+        description="List of GeoDataReference strings for datasets to combine (STAC references, WKT strings, or local paths)"
+    ),
     output_format: str = Field(description="Format for the output file (geojson or parquet)", default="parquet"),
 ) -> str:
     """
@@ -266,8 +288,8 @@ def append_datasets(
     logger.info(f"Appending datasets: {datasets}")
 
     try:
-        # Convert each string to a Georeference object
-        dataset_refs = [Georeference(dataset) for dataset in datasets]
+        # Convert each string to a GeoDataReference object
+        dataset_refs = [GeoDataReference(dataset) for dataset in datasets]
 
         if not dataset_refs:
             return "Error: No datasets provided"

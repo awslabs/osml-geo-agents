@@ -5,13 +5,13 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 
 import geopandas as gpd
 import pyarrow.parquet as pq
 from pystac import Asset, Item
 
-from aws.osml.geoagents.common.georeference import Georeference
+from aws.osml.geoagents.common.stac_reference import STACReference
 
 logger = logging.getLogger(__name__)
 
@@ -66,17 +66,18 @@ class Workspace:
         # For backward compatibility, extract user_id from prefix if it's the last component
         self.user_id = os.path.basename(self.prefix) if self.prefix else "shared"
 
-    def get_item(self, georef: Georeference) -> Item:
+    def get_item(self, stac_ref: STACReference) -> Item:
         """
-        This method returns the STAC Item (summary information) for a georeference.
+        This method returns the STAC Item (summary information) for a STAC reference.
         It retrieves this item directly from the filesystem but eventually should likely
         look the item up in the index for the STAC.
 
-        :param georef: the geo reference to retrieve
+        :param stac_ref: the STAC reference to retrieve
         :return: the STAC item
         """
-        # Construct the path for the item JSON
-        item_path = f"{self.prefix}/{georef.item_id}/item.json"
+        # Construct the path for the item JSON, including collections if present
+        collections_path = "/".join(stac_ref.collections) + "/" if stac_ref.collections else ""
+        item_path = f"{self.prefix}/{collections_path}{stac_ref.item_id}/item.json"
 
         try:
             # Get the item JSON from the filesystem
@@ -86,15 +87,15 @@ class Workspace:
         except Exception as e:
             raise Exception(f"Failed to retrieve item from filesystem: {str(e)}") from e
 
-    def list_items(self) -> List[Georeference]:
+    def list_items(self) -> List[STACReference]:
         """
         List all items in the workspace.
 
-        :return: a list of Georeference objects for each item
+        :return: a list of STACReference objects for each item
         """
         try:
             # Use filesystem's ls method to list directories
-            item_ids: Set[str] = set()
+            stac_refs: List[STACReference] = []
 
             # List all directories at the prefix level
             try:
@@ -105,47 +106,90 @@ class Workspace:
                 dirs = [d for d in dirs if d.get("type", None) == "directory"]
 
                 for directory in dirs:
-                    # Extract the item ID from the path
+                    # Extract the path components
                     dir_path = directory["name"]
-                    item_id = os.path.basename(dir_path.rstrip("/"))
-
-                    # Verify this is an item by checking for item.json
-                    item_json_path = f"{dir_path}/item.json"
-                    if self.filesystem.exists(item_json_path):
-                        item_ids.add(item_id)
+                    # Start with an empty collections list
+                    self._process_directory(dir_path, [], stac_refs)
             except FileNotFoundError:
                 # If the prefix doesn't exist yet, return an empty list
                 pass
 
-            # Create Georeference objects for each item ID
-            return [Georeference.from_parts(item_id=item_id) for item_id in item_ids]
+            return stac_refs
         except Exception as e:
             logger.warning(f"Error listing items: {str(e)}")
             raise Exception(f"Failed to list items: {str(e)}")
 
-    def delete_item(self, georef: Georeference) -> None:
+    def _process_directory(self, dir_path: str, current_collections: List[str], stac_refs: List[STACReference]) -> None:
+        """
+        Recursively process directories to find STAC items and their collections.
+
+        :param dir_path: The directory path to process
+        :param current_collections: The current list of collections in the path
+        :param stac_refs: The list to add found STACReference objects to
+        """
+        # Check if this directory contains an item.json file
+        item_json_path = f"{dir_path}/item.json"
+        if self.filesystem.exists(item_json_path):
+            # This is an item directory, extract the item ID
+            item_id = os.path.basename(dir_path.rstrip("/"))
+            # Create a STACReference with the current collections
+            stac_refs.append(STACReference.from_parts(item_id=item_id, collections=current_collections.copy()))
+            return
+
+        # If not an item directory, check for subdirectories that might be collections or items
+        try:
+            subdirs = self.filesystem.ls(dir_path, detail=True)
+            subdirs = [d for d in subdirs if d.get("type", None) == "directory"]
+
+            for subdir in subdirs:
+                subdir_path = subdir["name"]
+                subdir_name = os.path.basename(subdir_path.rstrip("/"))
+
+                # Check if this subdirectory contains an item.json file
+                subdir_item_json_path = f"{subdir_path}/item.json"
+                if self.filesystem.exists(subdir_item_json_path):
+                    # This is an item directory, extract the item ID
+                    item_id = subdir_name
+                    # Create a STACReference with the current collections
+                    stac_refs.append(STACReference.from_parts(item_id=item_id, collections=current_collections.copy()))
+                else:
+                    # This is a collection directory, process it recursively
+                    new_collections = current_collections.copy()
+                    new_collections.append(subdir_name)
+                    self._process_directory(subdir_path, new_collections, stac_refs)
+        except FileNotFoundError:
+            # If directory doesn't exist or can't be listed, just return
+            pass
+        except Exception as e:
+            logger.warning(f"Error listing items: {str(e)}")
+            raise Exception(f"Failed to list items: {str(e)}")
+
+    def delete_item(self, stac_ref: STACReference) -> None:
         """
         Delete an item and all its assets from the workspace.
 
-        :param georef: the georeference of the item to delete
+        :param stac_ref: the STAC reference of the item to delete
         :raises Exception: if the item cannot be deleted
         """
         # Delete the item and its assets from the filesystem
-        item_path = f"{self.prefix}/{georef.item_id}"
+        collections_path = "/".join(stac_ref.collections) + "/" if stac_ref.collections else ""
+        item_path = f"{self.prefix}/{collections_path}{stac_ref.item_id}"
 
         try:
             # Check if the item exists
             if self.filesystem.exists(item_path):
                 # Use recursive delete to remove the item directory and all contents
                 self.filesystem.rm(item_path, recursive=True)
-                logger.info(f"Deleted item {georef}")
+                logger.info(f"Deleted item {stac_ref}")
             else:
-                logger.warning(f"No objects found for item {georef}")
+                logger.warning(f"No objects found for item {stac_ref}")
         except Exception as e:
-            logger.warning(f"Error deleting item {georef}: {str(e)}")
-            raise Exception(f"Failed to delete item {georef}: {str(e)}")
+            logger.warning(f"Error deleting item {stac_ref}: {str(e)}")
+            raise Exception(f"Failed to delete item {stac_ref}: {str(e)}")
 
-    def create_item(self, item: Item, temp_assets: Optional[Dict[str, Path]]) -> Georeference:
+    def create_item(
+        self, item: Item, temp_assets: Optional[Dict[str, Path]], collections: Optional[List[str]] = None
+    ) -> STACReference:
         """
         Create an item/assets in the workspace.
 
@@ -156,10 +200,12 @@ class Workspace:
 
         :param item: the STAC item to create
         :param temp_assets: a mapping of asset keys to local files
-        :return: the georeference for the new item
+        :param collections: optional list of collections this item belongs to
+        :return: the STAC reference for the new item
         """
-        # Determine the base path for this item
-        item_base_path = f"{self.prefix}/{item.id}"
+        # Determine the base path for this item, including collections if present
+        collections_path = "/".join(collections) + "/" if collections else ""
+        item_base_path = f"{self.prefix}/{collections_path}{item.id}"
 
         if temp_assets:
             for asset_key, local_path in temp_assets.items():
@@ -215,8 +261,8 @@ class Workspace:
             logger.warning(f"\nError uploading {item_json_path}: {str(e)}")
             raise Exception(f"Failed to upload item JSON: {str(e)}")
 
-        # Create and return Georeference
-        return Georeference.from_parts(item_id=item.id)
+        # Create and return STACReference
+        return STACReference.from_parts(item_id=item.id, collections=collections)
 
     def is_parquet_file(self, file_path: str) -> bool:
         """
@@ -250,6 +296,31 @@ class Workspace:
                     result[name] = field.metadata[b"comment"].decode("utf-8")
         return result
 
+    def read_wkt_file(self, file_path: str) -> gpd.GeoDataFrame:
+        """
+        Read a WKT file and convert it to a GeoDataFrame.
+
+        :param file_path: Path to the WKT file in the filesystem
+        :return: A GeoDataFrame created from the WKT data with CRS set to EPSG:4326
+        """
+        try:
+            with self.filesystem.open(file_path, "r") as f:
+                wkt_data = f.read()
+
+            # Create a GeoSeries from the WKT strings
+            geo_series = gpd.GeoSeries.from_wkt([wkt_data])
+
+            # Create a GeoDataFrame with the GeoSeries as the geometry column
+            gdf = gpd.GeoDataFrame(geometry=geo_series)
+
+            # Set the CRS to EPSG:4326 as specified
+            gdf.set_crs(epsg=4326, inplace=True)
+
+            return gdf
+        except Exception:
+            logger.error(f"Unable to create GeoDataFrame from WKT file: {os.path.basename(file_path)}", exc_info=True)
+            raise ValueError(f"Unable to create GeoDataFrame from WKT file: {os.path.basename(file_path)}")
+
     def read_geo_data_frame(self, dataset_path: str) -> gpd.GeoDataFrame:
         """
         Read a GeoDataFrame from a file in the workspace filesystem.
@@ -259,7 +330,10 @@ class Workspace:
         :return: the GeoDataFrame
         """
         try:
-            if self.is_parquet_file(dataset_path):
+            # Check if this is a WKT file
+            if dataset_path.lower().endswith(".wkt"):
+                return self.read_wkt_file(dataset_path)
+            elif self.is_parquet_file(dataset_path):
                 with self.filesystem.open(dataset_path, "rb") as f:
                     gdf = gpd.read_parquet(f)
 

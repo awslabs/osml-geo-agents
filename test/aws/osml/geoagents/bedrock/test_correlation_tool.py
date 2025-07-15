@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from aws.osml.geoagents.bedrock import CorrelationTool, ToolExecutionError
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, Workspace
 from aws.osml.geoagents.spatial import CorrelationTypes
 
 
@@ -24,8 +24,8 @@ class TestCorrelationTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "CORRELATE",
             "parameters": [
-                {"name": "dataset1", "value": "georef:dataset1", "type": "string"},
-                {"name": "dataset2", "value": "georef:dataset2", "type": "string"},
+                {"name": "dataset1", "value": "stac:dataset1", "type": "string"},
+                {"name": "dataset2", "value": "stac:dataset2", "type": "string"},
                 {"name": "correlation_type", "value": "intersection", "type": "string"},
                 {"name": "distance", "value": "100", "type": "string"},
             ],
@@ -50,10 +50,10 @@ class TestCorrelationTool(unittest.TestCase):
 
         # Mock the correlation_operation function to return a predefined result
         mock_correlation_operation.return_value = (
-            "The datasets georef:dataset1 and georef:dataset2 have been correlated using the intersection operation. "
-            "The correlated result is known as georef:CORRELATE-20250612. "
+            "The datasets stac:dataset1 and stac:dataset2 have been correlated using the intersection operation. "
+            "The correlated result is known as stac:CORRELATE-20250612. "
             "A summary of the contents is: This dataset contains 3 features resulting from a intersection "
-            "correlation operation between georef:dataset1 and georef:dataset2. "
+            "correlation operation between stac:dataset1 and stac:dataset2. "
             "A buffer of 100 units was applied to the first dataset."
         )
 
@@ -62,8 +62,8 @@ class TestCorrelationTool(unittest.TestCase):
 
         # Verify correlation_operation was called with the correct parameters
         mock_correlation_operation.assert_called_once_with(
-            dataset1_georef=Georeference("georef:dataset1"),
-            dataset2_georef=Georeference("georef:dataset2"),
+            dataset1_georef=GeoDataReference("stac:dataset1"),
+            dataset2_georef=GeoDataReference("stac:dataset2"),
             correlation_type=CorrelationTypes.INTERSECTION,
             distance=100.0,
             dataset1_geo_column="geometry1",
@@ -73,9 +73,9 @@ class TestCorrelationTool(unittest.TestCase):
         )
 
         # Verify the response contains the mocked result
-        self.assertIn("The datasets georef:dataset1 and georef:dataset2 have been correlated", str(result["response"]))
+        self.assertIn("The datasets stac:dataset1 and stac:dataset2 have been correlated", str(result["response"]))
         self.assertIn("intersection operation", str(result["response"]))
-        self.assertIn("georef:CORRELATE-20250612", str(result["response"]))
+        self.assertIn("stac:CORRELATE-20250612", str(result["response"]))
 
     @patch("aws.osml.geoagents.bedrock.correlation_tool.correlation_operation")
     def test_handler_with_minimal_parameters(self, mock_correlation_operation):
@@ -85,17 +85,17 @@ class TestCorrelationTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "CORRELATE",
             "parameters": [
-                {"name": "dataset1", "value": "georef:dataset1", "type": "string"},
-                {"name": "dataset2", "value": "georef:dataset2", "type": "string"},
+                {"name": "dataset1", "value": "stac:dataset1", "type": "string"},
+                {"name": "dataset2", "value": "stac:dataset2", "type": "string"},
             ],
         }
 
         # Mock the correlation_operation function to return a predefined result
         mock_correlation_operation.return_value = (
-            "The datasets georef:dataset1 and georef:dataset2 have been correlated using the intersection operation. "
-            "The correlated result is known as georef:CORRELATE-20250612. "
+            "The datasets stac:dataset1 and stac:dataset2 have been correlated using the intersection operation. "
+            "The correlated result is known as stac:CORRELATE-20250612. "
             "A summary of the contents is: This dataset contains 3 features resulting from a intersection "
-            "correlation operation between georef:dataset1 and georef:dataset2."
+            "correlation operation between stac:dataset1 and stac:dataset2."
         )
 
         # Execute handler
@@ -103,8 +103,8 @@ class TestCorrelationTool(unittest.TestCase):
 
         # Verify correlation_operation was called with the correct parameters
         mock_correlation_operation.assert_called_once_with(
-            dataset1_georef=Georeference("georef:dataset1"),
-            dataset2_georef=Georeference("georef:dataset2"),
+            dataset1_georef=GeoDataReference("stac:dataset1"),
+            dataset2_georef=GeoDataReference("stac:dataset2"),
             correlation_type=None,  # Should be None since not provided
             distance=None,  # Should be None since not provided
             dataset1_geo_column=None,  # Should be None since not provided
@@ -114,7 +114,7 @@ class TestCorrelationTool(unittest.TestCase):
         )
 
         # Verify the response contains the mocked result
-        self.assertIn("The datasets georef:dataset1 and georef:dataset2 have been correlated", str(result["response"]))
+        self.assertIn("The datasets stac:dataset1 and stac:dataset2 have been correlated", str(result["response"]))
         self.assertIn("intersection operation", str(result["response"]))
 
     @patch("aws.osml.geoagents.bedrock.correlation_tool.correlation_operation")
@@ -129,10 +129,10 @@ class TestCorrelationTool(unittest.TestCase):
 
         # Mock the correlation_operation function to return a predefined result
         mock_correlation_operation.return_value = (
-            "The datasets georef:dataset1 and georef:dataset2 have been correlated using the difference operation. "
-            "The correlated result is known as georef:CORRELATE-20250612. "
+            "The datasets stac:dataset1 and stac:dataset2 have been correlated using the difference operation. "
+            "The correlated result is known as stac:CORRELATE-20250612. "
             "A summary of the contents is: This dataset contains 2 features resulting from a difference "
-            "correlation operation between georef:dataset1 and georef:dataset2. "
+            "correlation operation between stac:dataset1 and stac:dataset2. "
             "A buffer of 100 units was applied to the first dataset."
         )
 
@@ -141,8 +141,8 @@ class TestCorrelationTool(unittest.TestCase):
 
         # Verify correlation_operation was called with the correct parameters
         mock_correlation_operation.assert_called_once_with(
-            dataset1_georef=Georeference("georef:dataset1"),
-            dataset2_georef=Georeference("georef:dataset2"),
+            dataset1_georef=GeoDataReference("stac:dataset1"),
+            dataset2_georef=GeoDataReference("stac:dataset2"),
             correlation_type=CorrelationTypes.DIFFERENCE,
             distance=100.0,
             dataset1_geo_column=None,
@@ -152,7 +152,7 @@ class TestCorrelationTool(unittest.TestCase):
         )
 
         # Verify the response contains the mocked result
-        self.assertIn("The datasets georef:dataset1 and georef:dataset2 have been correlated", str(result["response"]))
+        self.assertIn("The datasets stac:dataset1 and stac:dataset2 have been correlated", str(result["response"]))
         self.assertIn("difference operation", str(result["response"]))
 
     @patch("aws.osml.geoagents.bedrock.correlation_tool.correlation_operation")
@@ -173,7 +173,7 @@ class TestCorrelationTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "CORRELATE",
             "parameters": [
-                {"name": "dataset2", "value": "georef:dataset2", "type": "string"},
+                {"name": "dataset2", "value": "stac:dataset2", "type": "string"},
                 {"name": "correlation_type", "value": "intersection", "type": "string"},
             ],
         }
@@ -189,7 +189,7 @@ class TestCorrelationTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "CORRELATE",
             "parameters": [
-                {"name": "dataset1", "value": "georef:dataset1", "type": "string"},
+                {"name": "dataset1", "value": "stac:dataset1", "type": "string"},
                 {"name": "correlation_type", "value": "intersection", "type": "string"},
             ],
         }

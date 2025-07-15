@@ -3,7 +3,7 @@
 import logging
 from typing import Any, List
 
-from ..common import Georeference, Workspace
+from ..common import GeoDataReference, Workspace
 from ..spatial import append_operation
 from .common_parameters import CommonParameters
 from .tool_base import ToolBase, ToolExecutionError
@@ -15,7 +15,7 @@ class AppendTool(ToolBase):
     """
     A tool that combines multiple datasets into a single result by appending them.
     It allows GenAI agents to respond to queries like:
-    "Combine these datasets: georef:dataset-a, georef:dataset-b, and georef:dataset-c"
+    "Combine these datasets: stac:dataset-a, stac:dataset-b, and stac:dataset-c"
     """
 
     def __init__(self):
@@ -46,35 +46,35 @@ class AppendTool(ToolBase):
             if datasets_param is None:
                 raise ToolExecutionError(
                     "Missing required parameter: 'datasets'. "
-                    "The parameter must be provided as a list of valid georeference strings."
+                    "The parameter must be provided as a list of valid geo data reference strings."
                 )
 
-            # Parse the list of dataset georeferences
-            dataset_georefs: List[Georeference] = []
+            # Parse the list of dataset references
+            dataset_refs: List[GeoDataReference] = []
             try:
                 # Ensure datasets_param is a list
                 if not isinstance(datasets_param, list):
                     raise ToolExecutionError(
                         f"Invalid 'datasets' parameter: {datasets_param}. "
-                        "The parameter must be a list of valid georeference strings."
+                        "The parameter must be a list of valid geo data reference strings."
                     )
 
-                # Parse each dataset georeference
+                # Parse each dataset reference
                 for dataset_value in datasets_param:
                     try:
                         dataset_value_str = str(dataset_value)
-                        dataset_georefs.append(Georeference(encoded_value=dataset_value_str))
+                        dataset_refs.append(GeoDataReference(dataset_value_str))
                     except (ValueError, TypeError) as e:
-                        logger.info(f"Unable to parse dataset georef: {dataset_value}", e)
+                        logger.info(f"Unable to parse dataset reference: {dataset_value}", e)
                         raise ToolExecutionError(
-                            f"Unable to construct a valid georeference from dataset value: {dataset_value}. "
-                            "Each dataset must be a valid georeference encoded as a string."
+                            f"Unable to construct a valid geo data reference from dataset value: {dataset_value}. "
+                            "Each dataset must be a valid geo data reference encoded as a string (WKT, file path, or STAC reference)."
                         )
             except Exception as e:
                 logger.error("Error parsing datasets parameter: %s", str(e))
                 raise ToolExecutionError(
                     f"Unable to parse 'datasets' parameter: {datasets_param}. "
-                    "The parameter must be a list of valid georeference strings."
+                    "The parameter must be a list of valid geo data reference strings."
                 )
 
             # Parse output format parameter (optional)
@@ -88,7 +88,7 @@ class AppendTool(ToolBase):
 
             # Call the operation function
             text_result = append_operation(
-                dataset_georefs=dataset_georefs,
+                dataset_references=dataset_refs,
                 workspace=workspace,
                 function_name=self.function_name,
                 output_format=output_format,

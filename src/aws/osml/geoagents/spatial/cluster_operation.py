@@ -10,14 +10,14 @@ import numpy as np
 from pyproj import CRS
 from sklearn.cluster import DBSCAN
 
-from ..common import Georeference, LocalAssets, Workspace
-from .spatial_utils import create_derived_stac_item, validate_dataset_crs
+from ..common import GeoDataReference, LocalAssets, STACReference, Workspace
+from .spatial_utils import create_derived_stac_item, create_stac_item_for_dataset, validate_dataset_crs
 
 logger = logging.getLogger(__name__)
 
 
 def cluster_operation(
-    dataset_georef: Georeference,
+    dataset_reference: GeoDataReference,
     distance_meters: float,
     max_clusters: Optional[float],
     workspace: Workspace,
@@ -27,11 +27,11 @@ def cluster_operation(
     """
     Cluster features in a dataset using DBSCAN based on their geometric centers.
 
-    :param dataset_georef: Georeference for the dataset to cluster
+    :param dataset_reference: GeoDataReference for the dataset to cluster
     :param distance_meters: Distance threshold in meters for clustering
     :param max_clusters: Optional maximum number of clusters to return (largest first)
     :param workspace: Workspace for storing assets
-    :param function_name: Function name for creating georeference
+    :param function_name: Function name for creating reference
     :param output_format: Format for the output file (geojson or parquet)
     :return: A formatted string with the clustering result
     :raises ValueError: If clustering fails
@@ -40,12 +40,21 @@ def cluster_operation(
 
     try:
         # Use context manager to handle local assets
-        with LocalAssets(dataset_georef, workspace) as (item, local_asset_paths):
+        with LocalAssets(dataset_reference, workspace) as (item, local_asset_paths):
             # Select the assets to process and load them into memory
             selected_asset_key = next(iter(local_asset_paths))
             local_dataset_path = local_asset_paths[selected_asset_key]
             gdf = workspace.read_geo_data_frame(str(local_dataset_path))
-            validate_dataset_crs(gdf, dataset_georef)
+            validate_dataset_crs(gdf, dataset_reference)
+
+            # If item is None, create a new item from the GeoDataFrame
+            if item is None:
+                item = create_stac_item_for_dataset(
+                    gdf,
+                    str(local_dataset_path),
+                    title=f"Dataset from {dataset_reference}",
+                    description=f"Dataset loaded from {dataset_reference}",
+                )
 
             # Project to Web Mercator (EPSG:3857) for meter-based calculations
             gdf = gdf.to_crs(crs=CRS.from_epsg(3857))
@@ -74,8 +83,9 @@ def cluster_operation(
             if max_clusters:
                 clusters = clusters[: int(max_clusters)]
 
-            # Create a single base georeference for all clusters
-            base_georef = Georeference.new_from_timestamp(prefix=function_name)
+            # Create a single base reference for all clusters
+            base_stac_ref = STACReference.new_from_timestamp(prefix=function_name)
+            base_reference = GeoDataReference.from_stac_reference(base_stac_ref)
 
             # Prepare assets dictionary and cluster information
             assets = {}
@@ -88,7 +98,7 @@ def cluster_operation(
 
                 # Create path for cluster dataset
                 temp_dir = Path(tempfile.gettempdir())
-                cluster_dataset_path = temp_dir / base_georef.item_id / f"{asset_key}-result.{output_format}"
+                cluster_dataset_path = temp_dir / base_stac_ref.item_id / f"{asset_key}-result.{output_format}"
                 cluster_dataset_path.parent.mkdir(parents=True, exist_ok=True)
                 cluster_dataset_paths.append(cluster_dataset_path)
 
@@ -107,7 +117,7 @@ def cluster_operation(
 
             dataset_title = f"Clusters from {item.properties['title']}"
             dataset_summary = (
-                f"This dataset contains {saved_clusters} clusters extracted from {dataset_georef} "
+                f"This dataset contains {saved_clusters} clusters extracted from {dataset_reference} "
                 f"using DBSCAN clustering with a distance threshold of {distance_meters} meters. "
             )
 
@@ -119,21 +129,21 @@ def cluster_operation(
                 dataset_summary += f"- {asset_key}: {size} features\n"
 
             # Create STAC item for all clusters
-            clusters_item = create_derived_stac_item(base_georef, dataset_title, dataset_summary, item)
+            clusters_item = create_derived_stac_item(base_reference, dataset_title, dataset_summary, item)
 
             # Publish single item with all cluster assets
             workspace.create_item(item=clusters_item, temp_assets=assets)
 
             # Generate text result
             text_result = (
-                f"Found {total_clusters} clusters in dataset {dataset_georef} using a "
+                f"Found {total_clusters} clusters in dataset {dataset_reference} using a "
                 f"distance threshold of {distance_meters} meters. "
             )
 
             if max_clusters and total_clusters > max_clusters:
                 text_result += f"Saved the {saved_clusters} largest clusters as requested. "
 
-            text_result += f"\nAll clusters are available in {base_georef} with the following assets:\n"
+            text_result += f"\nAll clusters are available in {base_reference} with the following assets:\n"
             for asset_key, size in cluster_info:
                 text_result += f"- {asset_key}: {size} features\n"
 

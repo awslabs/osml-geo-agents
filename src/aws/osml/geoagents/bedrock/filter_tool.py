@@ -16,7 +16,7 @@ class FilterTool(ToolBase):
     A tool capable of filtering a dataset to only contain results that intersect a given geometry.
     It allows GenAI agents to respond to queries like the following:
 
-    "How many features from dataset georef:dataset-a are within the bounding area: POLYGON
+    "How many features from dataset stac:dataset-a are within the bounding area: POLYGON
     ((-76.7142 14.9457, 84.7142 14.9457, 84.7142 22.945, -76.7142 22.945, -76.7142 14.9457))?"
     """
 

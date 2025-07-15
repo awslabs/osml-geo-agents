@@ -15,7 +15,7 @@ class SampleTool(ToolBase):
     """
     A tool capable of returning a text representation of features from a geodataset.
     It allows GenAI agents to respond to queries like:
-    "Show me the first 5 features from dataset georef:dataset-a"
+    "Show me the first 5 features from dataset stac:dataset-a"
     """
 
     def __init__(self):
@@ -49,7 +49,7 @@ class SampleTool(ToolBase):
             if dataset_georef is None:
                 raise ToolExecutionError(
                     "Missing required parameter: 'dataset'. "
-                    "The parameter must be a valid georeference encoded as a string."
+                    "The parameter must be a valid geo data reference encoded as a string."
                 )
 
             # Get number of features parameter, defaulting to 10 if not provided
@@ -59,7 +59,7 @@ class SampleTool(ToolBase):
 
             # Call the operation function
             text_result = sample_operation(
-                dataset_georef=dataset_georef, number_of_features=num_features, workspace=workspace
+                dataset_reference=dataset_georef, number_of_features=num_features, workspace=workspace
             )
 
             return self.create_action_response(event, text_result, is_error=False)

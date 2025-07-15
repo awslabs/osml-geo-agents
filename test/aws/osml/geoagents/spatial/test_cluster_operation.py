@@ -10,7 +10,7 @@ import shapely
 from pyproj import CRS
 from pystac import Asset, Item
 
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, STACReference, Workspace
 from aws.osml.geoagents.spatial.cluster_operation import cluster_operation
 
 
@@ -21,8 +21,10 @@ class TestClusterOperation(unittest.TestCase):
         self.mock_workspace = Mock(spec=Workspace)
         self.mock_workspace.session_local_path = "/tmp"
 
-        # Create a mock georeference
-        self.dataset_georef = Mock(spec=Georeference)
+        # Create a mock GeoDataReference
+        self.dataset_reference = Mock(spec=GeoDataReference)
+        self.dataset_reference.reference_string = "stac:test-dataset"
+        self.dataset_reference.is_stac_reference = Mock(return_value=True)
 
         # Create a mock function name
         self.function_name = "CLUSTER"
@@ -78,7 +80,11 @@ class TestClusterOperation(unittest.TestCase):
 
     @patch("aws.osml.geoagents.spatial.cluster_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.cluster_operation.create_derived_stac_item")
-    def test_cluster_operation_successful(self, mock_create_derived_stac_item, mock_local_assets):
+    @patch("aws.osml.geoagents.spatial.cluster_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.cluster_operation.STACReference")
+    def test_cluster_operation_successful(
+        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+    ):
         """Test successful clustering of features."""
         # Set up mock for LocalAssets context manager
         mock_local_asset_paths = {"asset1": Path("/tmp/asset1.parquet")}
@@ -92,9 +98,17 @@ class TestClusterOperation(unittest.TestCase):
         mock_derived_item = Mock(spec=Item)
         mock_create_derived_stac_item.return_value = mock_derived_item
 
+        # Set up mock for create_stac_item_for_dataset
+        mock_create_stac_item_for_dataset.return_value = self.sample_item
+
+        # Set up mock for STACReference
+        mock_stac_ref = Mock(spec=STACReference)
+        mock_stac_ref.item_id = "test-item-id"
+        mock_stac_reference.new_from_timestamp.return_value = mock_stac_ref
+
         # Call the operation function
         result = cluster_operation(
-            dataset_georef=self.dataset_georef,
+            dataset_reference=self.dataset_reference,
             distance_meters=self.distance_meters,
             max_clusters=self.max_clusters,
             workspace=self.mock_workspace,

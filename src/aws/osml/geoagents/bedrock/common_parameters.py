@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 import shapely
 
-from ..common import Georeference
+from ..common import GeoDataReference
 from .tool_base import ToolBase, ToolExecutionError
 
 logger = logging.getLogger(__name__)
@@ -98,15 +98,15 @@ class CommonParameters:
     @staticmethod
     def parse_dataset_georef(
         event: dict[str, Any], param_name: str = "dataset", is_required: bool = True
-    ) -> Optional[Georeference]:
+    ) -> Optional[GeoDataReference]:
         """
-        Parse a dataset parameter as a georeference.
+        Parse a dataset parameter as a GeoDataReference.
 
         :param event: the Lambda input event from Bedrock
         :param param_name: name of the parameter to parse (defaults to "dataset")
         :param is_required: whether the parameter is required (defaults to True)
         :raises ToolExecutionError: if a required parameter is missing or if a provided value cannot be parsed
-        :return: the parsed georeference (never None if is_required=True, as it would raise ToolExecutionError instead)
+        :return: the parsed GeoDataReference (never None if is_required=True, as it would raise ToolExecutionError instead)
         """
         dataset_value, _ = ToolBase.get_parameter_info(event, param_name)
 
@@ -115,20 +115,23 @@ class CommonParameters:
             if is_required:
                 raise ToolExecutionError(
                     f"Missing required parameter: '{param_name}'. "
-                    "The parameter must be provided and be a valid georeference encoded as a string."
+                    "The parameter must be provided and be a valid geo data reference encoded as a string."
                 )
             return None
 
         # If value is provided, always validate it regardless of is_required
         try:
-            # Cast to str to satisfy type checker since get_parameter_info returns Any
-            dataset_value_str = str(dataset_value)
-            return Georeference(encoded_value=dataset_value_str)
+            # Check if the value is a string
+            if not isinstance(dataset_value, str):
+                raise TypeError(f"Expected string but got {type(dataset_value).__name__}")
+
+            # Create the GeoDataReference object
+            return GeoDataReference(dataset_value)
         except (ValueError, TypeError) as e:
-            logger.info(f"Unable to parse dataset georef: {dataset_value}", e)
+            logger.info(f"Unable to parse dataset reference: {dataset_value}", e)
             raise ToolExecutionError(
-                f"Unable to construct a valid georeference from '{param_name}' parameter. "
-                "The parameter must be a valid georeference encoded as a string."
+                f"Unable to construct a valid geo data reference from '{param_name}' parameter. "
+                "The parameter must be a valid geo data reference encoded as a string (WKT, file path, or STAC reference)."
             )
 
     @staticmethod
