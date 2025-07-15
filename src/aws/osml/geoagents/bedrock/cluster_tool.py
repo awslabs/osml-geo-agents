@@ -15,8 +15,8 @@ class ClusterTool(ToolBase):
     """
     A tool capable of clustering features in a dataset using DBSCAN based on their geometric centers.
     It allows GenAI agents to respond to queries like:
-    "Find clusters of features in dataset georef:dataset-a using a 100m distance threshold" or
-    "Find the 5 largest clusters in dataset georef:dataset-b using a 50m distance threshold"
+    "Find clusters of features in dataset stac:dataset-a using a 100m distance threshold" or
+    "Find the 5 largest clusters in dataset stac:dataset-b using a 50m distance threshold"
     """
 
     def __init__(self):

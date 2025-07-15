@@ -15,7 +15,7 @@ class CorrelationTool(ToolBase):
     """
     A tool capable of correlating two spatial datasets using a spatial join.
     It allows GenAI agents to respond to queries like:
-    "What features from dataset georef:dataset-a intersect with features from georef:dataset-b using a 100m buffer?"
+    "What features from dataset stac:dataset-a intersect with features from stac:dataset-b using a 100m buffer?"
     """
 
     def __init__(self):

@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from aws.osml.geoagents.bedrock import AppendTool, ToolExecutionError
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, Workspace
 
 
 class TestAppendTool(unittest.TestCase):
@@ -30,7 +30,7 @@ class TestAppendTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "APPEND",
             "parameters": [
-                {"name": "datasets", "value": ["georef:dataset1", "georef:dataset2", "georef:dataset3"], "type": "array"},
+                {"name": "datasets", "value": ["POINT (0 0)", "/path/to/file.geojson", "stac:dataset3"], "type": "array"},
                 {"name": "output_format", "value": "parquet", "type": "string"},
             ],
             "messageVersion": "1.0",
@@ -47,7 +47,7 @@ class TestAppendTool(unittest.TestCase):
         # Mock the append_operation function to return a predefined result
         mock_append_operation.return_value = (
             "The 3 datasets have been combined into a single dataset. "
-            "The combined result is known as georef:APPEND-20250612. "
+            "The combined result is known as stac:APPEND-20250612. "
             "A summary of the contents is: This dataset contains 15 features resulting from appending "
             "3 datasets: Dataset 1, Dataset 2, Dataset 3."
         )
@@ -57,10 +57,10 @@ class TestAppendTool(unittest.TestCase):
 
         # Verify append_operation was called with the correct parameters
         mock_append_operation.assert_called_once_with(
-            dataset_georefs=[
-                Georeference("georef:dataset1"),
-                Georeference("georef:dataset2"),
-                Georeference("georef:dataset3"),
+            dataset_references=[
+                GeoDataReference("POINT (0 0)"),
+                GeoDataReference("/path/to/file.geojson"),
+                GeoDataReference("stac:dataset3"),
             ],
             workspace=self.mock_workspace,
             function_name=self.tool.function_name,
@@ -73,7 +73,7 @@ class TestAppendTool(unittest.TestCase):
 
         # Verify the result contains information about the append operation
         self.assertIn("3 datasets have been combined", result_text)
-        self.assertIn("georef:APPEND-20250612", result_text)
+        self.assertIn("stac:APPEND-20250612", result_text)
         self.assertIn("15 features", result_text)
 
     @patch("aws.osml.geoagents.bedrock.append_tool.append_operation")
@@ -85,7 +85,7 @@ class TestAppendTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "APPEND",
             "parameters": [
-                {"name": "datasets", "value": ["georef:dataset1", "georef:dataset2"], "type": "array"},
+                {"name": "datasets", "value": ["POINT (0 0)", "/path/to/file.geojson"], "type": "array"},
             ],
             "messageVersion": "1.0",
         }
@@ -93,7 +93,7 @@ class TestAppendTool(unittest.TestCase):
         # Mock the append_operation function to return a predefined result
         mock_append_operation.return_value = (
             "The 2 datasets have been combined into a single dataset. "
-            "The combined result is known as georef:APPEND-20250612."
+            "The combined result is known as stac:APPEND-20250612."
         )
 
         # Call the handler
@@ -101,7 +101,7 @@ class TestAppendTool(unittest.TestCase):
 
         # Verify append_operation was called with the default output_format
         mock_append_operation.assert_called_once_with(
-            dataset_georefs=[Georeference("georef:dataset1"), Georeference("georef:dataset2")],
+            dataset_references=[GeoDataReference("POINT (0 0)"), GeoDataReference("/path/to/file.geojson")],
             workspace=self.mock_workspace,
             function_name=self.tool.function_name,
             output_format="parquet",  # Default value
@@ -155,7 +155,8 @@ class TestAppendTool(unittest.TestCase):
         self.assertIn("Unable to parse 'datasets' parameter", str(context.exception))
         self.assertIn("must be a list", str(context.exception))
 
-    def test_handler_invalid_dataset_reference(self):
+    @patch("aws.osml.geoagents.bedrock.append_tool.GeoDataReference")
+    def test_handler_invalid_dataset_reference(self, mock_geo_data_reference):
         """Test handling of invalid dataset reference in the list."""
         # Create event with an invalid dataset reference
         event_invalid_ref = {
@@ -163,15 +164,22 @@ class TestAppendTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "APPEND",
             "parameters": [
-                {"name": "datasets", "value": ["georef:valid", 123, "georef:also_valid"], "type": "array"},
+                {"name": "datasets", "value": ["POINT (0 0)", 123, "stac:also_valid"], "type": "array"},
             ],
         }
 
-        # We expect a ToolExecutionError because 123 is not a valid georeference
+        # Configure the mock to raise an exception for the invalid value
+        mock_geo_data_reference.side_effect = [
+            GeoDataReference("POINT (0 0)"),  # First call works
+            ValueError("Invalid reference"),  # Second call fails
+            # Third call won't happen because of the exception
+        ]
+
+        # We expect a ToolExecutionError because 123 is not a valid geo data reference
         with self.assertRaises(ToolExecutionError) as context:
             self.tool.handler(event_invalid_ref, self.context, self.mock_workspace)
 
-        # Verify the error message
+        # Verify the error message contains the invalid value
         self.assertIn("Unable to parse 'datasets' parameter", str(context.exception))
         self.assertIn("123", str(context.exception))
 
@@ -183,7 +191,7 @@ class TestAppendTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "APPEND",
             "parameters": [
-                {"name": "datasets", "value": ["georef:dataset1", "georef:dataset2"], "type": "array"},
+                {"name": "datasets", "value": ["stac:dataset1", "stac:dataset2"], "type": "array"},
                 {"name": "output_format", "value": "invalid_format", "type": "string"},
             ],
         }

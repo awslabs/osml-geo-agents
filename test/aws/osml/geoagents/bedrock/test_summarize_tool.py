@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from aws.osml.geoagents.bedrock import SummarizeTool, ToolExecutionError
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, Workspace
 
 
 class TestSummarizeTool(unittest.TestCase):
@@ -17,7 +17,7 @@ class TestSummarizeTool(unittest.TestCase):
         self.event = {
             "actionGroup": "SpatialReasoning",
             "function": "SUMMARIZE",
-            "parameters": [{"name": "dataset", "value": "georef:test-dataset"}],
+            "parameters": [{"name": "dataset", "value": "stac:test-dataset"}],
         }
 
         # Create a basic context structure for testing
@@ -57,8 +57,8 @@ class TestSummarizeTool(unittest.TestCase):
     @patch("aws.osml.geoagents.bedrock.summarize_tool.summarize_operation")
     def test_tool_execution_error_from_operation(self, mock_summarize_operation, mock_parse_dataset_georef):
         """Test handling of ToolExecutionError from the summarize operation."""
-        # Set up the mock to return a valid Georeference
-        mock_georef = Mock(spec=Georeference)
+        # Set up the mock to return a valid GeoDataReference
+        mock_georef = Mock(spec=GeoDataReference)
         mock_parse_dataset_georef.return_value = mock_georef
 
         # Make the summarize_operation raise a ToolExecutionError
@@ -76,8 +76,8 @@ class TestSummarizeTool(unittest.TestCase):
     @patch("aws.osml.geoagents.bedrock.summarize_tool.summarize_operation")
     def test_generic_exception_from_operation(self, mock_summarize_operation, mock_parse_dataset_georef):
         """Test handling of generic exceptions from the summarize operation."""
-        # Set up the mock to return a valid Georeference
-        mock_georef = Mock(spec=Georeference)
+        # Set up the mock to return a valid GeoDataReference
+        mock_georef = Mock(spec=GeoDataReference)
         mock_parse_dataset_georef.return_value = mock_georef
 
         # Make the summarize_operation raise a generic Exception
@@ -96,8 +96,8 @@ class TestSummarizeTool(unittest.TestCase):
     @patch("aws.osml.geoagents.bedrock.summarize_tool.summarize_operation")
     def test_value_error_from_operation(self, mock_summarize_operation, mock_parse_dataset_georef):
         """Test handling of ValueError from the summarize operation."""
-        # Set up the mock to return a valid Georeference
-        mock_georef = Mock(spec=Georeference)
+        # Set up the mock to return a valid GeoDataReference
+        mock_georef = Mock(spec=GeoDataReference)
         mock_parse_dataset_georef.return_value = mock_georef
 
         # Make the summarize_operation raise a ValueError

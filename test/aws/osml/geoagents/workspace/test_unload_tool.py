@@ -8,7 +8,7 @@ from unittest.mock import Mock
 from pystac import Item
 
 from aws.osml.geoagents.bedrock import ToolExecutionError
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, Workspace
 from aws.osml.geoagents.workspace import UnloadTool
 
 
@@ -22,7 +22,7 @@ class TestUnloadTool(unittest.TestCase):
         self.mock_workspace.session_local_path = Path("/tmp/osml-geo-agents/test")
 
         # Create a sample georef
-        self.georef = Georeference.from_parts(item_id="test-item")
+        self.georef = GeoDataReference("stac:test-item")
 
         # Create a sample event
         self.event = {
@@ -87,7 +87,7 @@ class TestUnloadTool(unittest.TestCase):
             "actionGroup": "WorkspaceActions",
             "function": "UNLOAD",
             "parameters": [
-                {"name": "dataset", "value": "invalid-georef", "type": "string"},
+                {"name": "dataset", "value": "stac:", "type": "string"},
             ],
         }
 
@@ -96,7 +96,7 @@ class TestUnloadTool(unittest.TestCase):
             self.tool.handler(event_invalid_dataset, {}, self.mock_workspace)
 
         # Verify the error message
-        self.assertIn("Unable to construct a valid georeference", str(context.exception))
+        self.assertIn("Unable to construct a valid geo data reference", str(context.exception))
 
     def test_handler_get_item_error(self):
         """Test handling of errors when getting item details."""

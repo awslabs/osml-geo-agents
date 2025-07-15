@@ -15,7 +15,7 @@ class SummarizeTool(ToolBase):
     """
     A tool capable of generating natural language descriptions of columns in a geodataframe.
     It allows GenAI agents to respond to queries like:
-    "What columns are available in dataset georef:dataset-a and what do they represent?"
+    "What columns are available in dataset stac:dataset-a and what do they represent?"
     """
 
     def __init__(self):
@@ -49,11 +49,11 @@ class SummarizeTool(ToolBase):
             if dataset_georef is None:
                 raise ToolExecutionError(
                     "Missing required parameter: 'dataset'. "
-                    "The parameter must be a valid georeference encoded as a string."
+                    "The parameter must be a valid geo data reference encoded as a string."
                 )
 
             # Call the operation function
-            summary = summarize_operation(dataset_georef=dataset_georef, workspace=workspace)
+            summary = summarize_operation(dataset_reference=dataset_georef, workspace=workspace)
 
             return self.create_action_response(event, summary, is_error=False)
 

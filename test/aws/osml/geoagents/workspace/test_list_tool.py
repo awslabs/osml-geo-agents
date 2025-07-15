@@ -8,7 +8,7 @@ from unittest.mock import Mock
 from pystac import Item
 
 from aws.osml.geoagents.bedrock import ToolExecutionError
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, Workspace
 from aws.osml.geoagents.workspace import ListTool
 
 
@@ -31,27 +31,27 @@ class TestListTool(unittest.TestCase):
 
     def test_handler_with_items(self):
         """Test listing items when there are items in the workspace."""
-        # Create sample georefs
-        georef1 = Georeference.from_parts(item_id="item1")
-        georef2 = Georeference.from_parts(item_id="item2")
+        # Create sample data references
+        data_ref1 = GeoDataReference.from_stac_reference("stac:item1")
+        data_ref2 = GeoDataReference.from_stac_reference("stac:item2")
 
-        # Mock the list_items method to return the sample georefs
-        self.mock_workspace.list_items = Mock(return_value=[georef1, georef2])
+        # Mock the list_items method to return the sample data references
+        self.mock_workspace.list_items = Mock(return_value=[data_ref1, data_ref2])
 
         # Create sample items to be returned by get_item
         item1 = Item(id="item1", geometry=None, bbox=None, datetime=datetime.now(), properties={"title": "Dataset 1"})
         item2 = Item(id="item2", geometry=None, bbox=None, datetime=datetime.now(), properties={"title": "Dataset 2"})
 
         # Mock the get_item method to return the sample items
-        self.mock_workspace.get_item = Mock(side_effect=lambda georef: item1 if georef.item_id == "item1" else item2)
+        self.mock_workspace.get_item = Mock(side_effect=lambda data_ref: item1 if "item1" in str(data_ref) else item2)
 
         # Call the handler
         result = self.tool.handler(self.event, {}, self.mock_workspace)
 
         # Verify the result
         self.assertIn("Datasets in the workspace:", str(result))
-        self.assertIn(str(georef1), str(result))
-        self.assertIn(str(georef2), str(result))
+        self.assertIn(str(data_ref1), str(result))
+        self.assertIn(str(data_ref2), str(result))
         self.assertIn("Dataset 1", str(result))
         self.assertIn("Dataset 2", str(result))
 
@@ -80,11 +80,11 @@ class TestListTool(unittest.TestCase):
 
     def test_handler_get_item_error(self):
         """Test handling of errors when getting item details."""
-        # Create sample georef
-        georef = Georeference.from_parts(item_id="item1")
+        # Create sample data reference
+        data_ref = GeoDataReference.from_stac_reference("stac:item1")
 
-        # Mock the list_items method to return the sample georef
-        self.mock_workspace.list_items = Mock(return_value=[georef])
+        # Mock the list_items method to return the sample data reference
+        self.mock_workspace.list_items = Mock(return_value=[data_ref])
 
         # Mock the get_item method to raise an exception
         self.mock_workspace.get_item = Mock(side_effect=Exception("Failed to get item"))
@@ -92,8 +92,8 @@ class TestListTool(unittest.TestCase):
         # Call the handler
         result = self.tool.handler(self.event, {}, self.mock_workspace)
 
-        # Verify the result still includes the georef even though get_item failed
-        self.assertIn(str(georef), str(result))
+        # Verify the result still includes the data reference even though get_item failed
+        self.assertIn(str(data_ref), str(result))
 
         # Verify list_items was called
         self.mock_workspace.list_items.assert_called_once()

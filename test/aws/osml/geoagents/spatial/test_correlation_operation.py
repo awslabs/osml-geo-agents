@@ -8,7 +8,7 @@ import geopandas as gpd
 import shapely
 from pystac import Item
 
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, STACReference, Workspace
 from aws.osml.geoagents.spatial.correlation_operation import CorrelationTypes, correlation_operation
 
 
@@ -19,9 +19,14 @@ class TestCorrelationOperation(unittest.TestCase):
         self.mock_workspace = Mock(spec=Workspace)
         self.mock_workspace.session_local_path = "/tmp"
 
-        # Create mock georeferences
-        self.dataset1_georef = Mock(spec=Georeference)
-        self.dataset2_georef = Mock(spec=Georeference)
+        # Create mock GeoDataReferences
+        self.dataset1_reference = Mock(spec=GeoDataReference)
+        self.dataset1_reference.reference_string = "stac:test-dataset1"
+        self.dataset1_reference.is_stac_reference = Mock(return_value=True)
+
+        self.dataset2_reference = Mock(spec=GeoDataReference)
+        self.dataset2_reference.reference_string = "stac:test-dataset2"
+        self.dataset2_reference.is_stac_reference = Mock(return_value=True)
 
         # Create a mock function name
         self.function_name = "CORRELATE"
@@ -35,7 +40,11 @@ class TestCorrelationOperation(unittest.TestCase):
 
     @patch("aws.osml.geoagents.spatial.correlation_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.correlation_operation.create_derived_stac_item")
-    def test_correlation_operation_intersection(self, mock_create_derived_stac_item, mock_local_assets):
+    @patch("aws.osml.geoagents.spatial.correlation_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.correlation_operation.STACReference")
+    def test_correlation_operation_intersection(
+        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+    ):
         """Test successful intersection correlation."""
         # Set up mocks for LocalAssets context manager
         mock_item1 = Mock(spec=Item)
@@ -69,10 +78,18 @@ class TestCorrelationOperation(unittest.TestCase):
         mock_derived_item = Mock(spec=Item)
         mock_create_derived_stac_item.return_value = mock_derived_item
 
+        # Set up mock for create_stac_item_for_dataset
+        mock_create_stac_item_for_dataset.return_value = mock_item1
+
+        # Set up mock for STACReference
+        mock_stac_ref = Mock(spec=STACReference)
+        mock_stac_ref.item_id = "test-item-id"
+        mock_stac_reference.new_from_timestamp.return_value = mock_stac_ref
+
         # Call the operation function with INTERSECTION correlation type
         result = correlation_operation(
-            dataset1_georef=self.dataset1_georef,
-            dataset2_georef=self.dataset2_georef,
+            dataset1_reference=self.dataset1_reference,
+            dataset2_reference=self.dataset2_reference,
             correlation_type=CorrelationTypes.INTERSECTION,
             distance=self.distance,
             dataset1_geo_column=self.dataset1_geo_column,
@@ -94,7 +111,11 @@ class TestCorrelationOperation(unittest.TestCase):
 
     @patch("aws.osml.geoagents.spatial.correlation_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.correlation_operation.create_derived_stac_item")
-    def test_correlation_operation_difference(self, mock_create_derived_stac_item, mock_local_assets):
+    @patch("aws.osml.geoagents.spatial.correlation_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.correlation_operation.STACReference")
+    def test_correlation_operation_difference(
+        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+    ):
         """Test successful difference correlation."""
         # Set up mocks for LocalAssets context manager
         mock_item1 = Mock(spec=Item)
@@ -128,10 +149,18 @@ class TestCorrelationOperation(unittest.TestCase):
         mock_derived_item = Mock(spec=Item)
         mock_create_derived_stac_item.return_value = mock_derived_item
 
+        # Set up mock for create_stac_item_for_dataset
+        mock_create_stac_item_for_dataset.return_value = mock_item1
+
+        # Set up mock for STACReference
+        mock_stac_ref = Mock(spec=STACReference)
+        mock_stac_ref.item_id = "test-item-id"
+        mock_stac_reference.new_from_timestamp.return_value = mock_stac_ref
+
         # Call the operation function with DIFFERENCE correlation type
         result = correlation_operation(
-            dataset1_georef=self.dataset1_georef,
-            dataset2_georef=self.dataset2_georef,
+            dataset1_reference=self.dataset1_reference,
+            dataset2_reference=self.dataset2_reference,
             correlation_type=CorrelationTypes.DIFFERENCE,
             distance=self.distance,
             dataset1_geo_column=self.dataset1_geo_column,

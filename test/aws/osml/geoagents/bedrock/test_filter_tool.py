@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
 
 from aws.osml.geoagents.bedrock import FilterTool, ToolExecutionError
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, Workspace
 
 
 class TestFilterTool(unittest.TestCase):
@@ -23,7 +23,7 @@ class TestFilterTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "FILTER",
             "parameters": [
-                {"name": "dataset", "value": "georef:test-dataset", "type": "string"},
+                {"name": "dataset", "value": "stac:test-dataset", "type": "string"},
                 {"name": "filter", "value": "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))", "type": "string"},
             ],
         }
@@ -38,25 +38,25 @@ class TestFilterTool(unittest.TestCase):
         """Test successful filtering of features from a dataset."""
         # Mock the filter_operation function to return a predefined result
         mock_filter_operation.return_value = (
-            "The dataset georef:test-dataset has been filtered. "
-            "The filtered result is known as georef:FILTER-20250612. "
+            "The dataset stac:test-dataset has been filtered. "
+            "The filtered result is known as stac:FILTER-20250612. "
             "A summary of the contents is: This dataset contains 5 features selected from "
-            "georef:test-dataset because they were within the boundary of POLYGON((0 0, 1 0, 1 1, 0 1, 0 0)). "
+            "stac:test-dataset because they were within the boundary of POLYGON((0 0, 1 0, 1 1, 0 1, 0 0)). "
         )
 
         result = self.tool.handler(self.event, self.context, self.mock_workspace)
 
         # Verify filter_operation was called with the correct parameters
         mock_filter_operation.assert_called_once_with(
-            dataset_georef=Georeference("georef:test-dataset"),
+            dataset_georef=GeoDataReference("stac:test-dataset"),
             filter_bounds=ANY,  # We can't directly compare shapely objects easily
             workspace=self.mock_workspace,
             function_name=self.tool.function_name,
         )
 
         # Verify the response contains the mocked result
-        self.assertIn("The dataset georef:test-dataset has been filtered", str(result["response"]))
-        self.assertIn("georef:FILTER-20250612", str(result["response"]))
+        self.assertIn("The dataset stac:test-dataset has been filtered", str(result["response"]))
+        self.assertIn("stac:FILTER-20250612", str(result["response"]))
 
     @patch("aws.osml.geoagents.bedrock.filter_tool.filter_operation")
     def test_filter_features_error_handling(self, mock_filter_operation):
@@ -91,7 +91,7 @@ class TestFilterTool(unittest.TestCase):
             "actionGroup": "SpatialReasoning",
             "function": "FILTER",
             "parameters": [
-                {"name": "dataset", "value": "georef:test-dataset", "type": "string"},
+                {"name": "dataset", "value": "stac:test-dataset", "type": "string"},
             ],
         }
 

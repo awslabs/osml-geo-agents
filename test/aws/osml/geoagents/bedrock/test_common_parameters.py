@@ -3,6 +3,8 @@
 import unittest
 from enum import Enum, auto
 
+import shapely
+
 from aws.osml.geoagents.bedrock import CommonParameters, ToolExecutionError
 
 
@@ -17,34 +19,62 @@ class TestEnum(Enum):
 class TestCommonParameters(unittest.TestCase):
     """Test cases for the CommonParameters utility class."""
 
-    def test_parse_dataset_georef_valid(self):
-        """Test parsing valid georeference."""
+    def test_parse_dataset_georef_valid_wkt(self):
+        """Test parsing valid WKT string as GeoDataReference."""
         event = {
             "actionGroup": "TestGroup",
             "function": "TEST",
-            "parameters": [{"name": "dataset", "value": "georef:test-dataset", "type": "string"}],
+            "parameters": [{"name": "dataset", "value": "POINT (0 0)", "type": "string"}],
         }
 
         georef = CommonParameters.parse_dataset_georef(event)
-        self.assertEqual(georef.encoded_value, "georef:test-dataset")
+        self.assertIsNotNone(georef)
+        self.assertEqual(georef.reference_string, "POINT (0 0)")
+        self.assertTrue(georef.is_wkt())
 
-    def test_parse_dataset_georef_invalid_string(self):
-        """Test parsing invalid georeference string raises error regardless of is_required."""
+    def test_parse_dataset_georef_valid_file_path(self):
+        """Test parsing valid file path as GeoDataReference."""
         event = {
             "actionGroup": "TestGroup",
             "function": "TEST",
-            "parameters": [{"name": "dataset", "value": "invalid:reference", "type": "string"}],
+            "parameters": [{"name": "dataset", "value": "/path/to/file.geojson", "type": "string"}],
+        }
+
+        georef = CommonParameters.parse_dataset_georef(event)
+        self.assertIsNotNone(georef)
+        self.assertEqual(georef.reference_string, "/path/to/file.geojson")
+        self.assertTrue(georef.is_file_path())
+
+    def test_parse_dataset_georef_valid_stac(self):
+        """Test parsing valid STAC reference as GeoDataReference."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "dataset", "value": "stac:test-dataset", "type": "string"}],
+        }
+
+        georef = CommonParameters.parse_dataset_georef(event)
+        self.assertIsNotNone(georef)
+        self.assertEqual(georef.reference_string, "stac:test-dataset")
+        self.assertTrue(georef.is_stac_reference())
+
+    def test_parse_dataset_georef_invalid_wkt(self):
+        """Test parsing invalid WKT string raises error regardless of is_required."""
+        event = {
+            "actionGroup": "TestGroup",
+            "function": "TEST",
+            "parameters": [{"name": "dataset", "value": "POINT (invalid coordinates)", "type": "string"}],
         }
 
         # Should raise error even when parameter is optional
         with self.assertRaises(ToolExecutionError) as context:
             CommonParameters.parse_dataset_georef(event, is_required=False)
-        self.assertIn("Unable to construct a valid georeference", str(context.exception))
+        self.assertIn("Unable to construct a valid geo data reference", str(context.exception))
 
         # Should raise error when parameter is required
         with self.assertRaises(ToolExecutionError) as context:
             CommonParameters.parse_dataset_georef(event, is_required=True)
-        self.assertIn("Unable to construct a valid georeference", str(context.exception))
+        self.assertIn("Unable to construct a valid geo data reference", str(context.exception))
 
     def test_parse_dataset_georef_invalid_type(self):
         """Test parsing non-string value raises error."""
@@ -56,18 +86,19 @@ class TestCommonParameters(unittest.TestCase):
 
         with self.assertRaises(ToolExecutionError) as context:
             CommonParameters.parse_dataset_georef(event)
-        self.assertIn("Unable to construct a valid georeference", str(context.exception))
+        self.assertIn("Unable to construct a valid geo data reference", str(context.exception))
 
     def test_parse_dataset_georef_custom_param_name(self):
-        """Test parsing georeference with custom parameter name."""
+        """Test parsing GeoDataReference with custom parameter name."""
         event = {
             "actionGroup": "TestGroup",
             "function": "TEST",
-            "parameters": [{"name": "custom_dataset", "value": "georef:test-dataset", "type": "string"}],
+            "parameters": [{"name": "custom_dataset", "value": "POINT (1 1)", "type": "string"}],
         }
 
         georef = CommonParameters.parse_dataset_georef(event, param_name="custom_dataset")
-        self.assertEqual(georef.encoded_value, "georef:test-dataset")
+        self.assertIsNotNone(georef)
+        self.assertEqual(georef.reference_string, "POINT (1 1)")
 
     def test_parse_dataset_georef_missing_required(self):
         """Test handling of missing required parameter."""
@@ -101,7 +132,8 @@ class TestCommonParameters(unittest.TestCase):
         }
 
         shape = CommonParameters.parse_shape_parameter(event)
-        self.assertTrue(shape.is_valid)
+        self.assertIsNotNone(shape)
+        self.assertTrue(shapely.is_valid(shape))
         self.assertEqual(shape.geom_type, "Polygon")
 
     def test_parse_shape_parameter_invalid_string(self):
@@ -143,7 +175,8 @@ class TestCommonParameters(unittest.TestCase):
         }
 
         shape = CommonParameters.parse_shape_parameter(event, param_name="custom_shape")
-        self.assertTrue(shape.is_valid)
+        self.assertIsNotNone(shape)
+        self.assertTrue(shapely.is_valid(shape))
         self.assertEqual(shape.geom_type, "Point")
 
     def test_parse_shape_parameter_missing_required(self):

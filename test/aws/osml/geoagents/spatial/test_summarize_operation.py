@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 import geopandas as gpd
 from shapely.geometry import Point, Polygon
 
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, Workspace
 from aws.osml.geoagents.spatial.summarize_operation import summarize_operation
 
 
@@ -19,9 +19,11 @@ class TestSummarizeOperation(unittest.TestCase):
         self.mock_workspace = Mock(spec=Workspace)
         self.mock_workspace.session_local_path = "/tmp"
 
-        # Create a mock georeference
-        self.dataset_georef = Mock(spec=Georeference)
-        self.dataset_georef.__str__ = Mock(return_value="georef:test-dataset")
+        # Create a mock GeoDataReference
+        self.dataset_reference = Mock(spec=GeoDataReference)
+        self.dataset_reference.__str__ = Mock(return_value="stac:test-dataset")
+        self.dataset_reference.reference_string = "stac:test-dataset"
+        self.dataset_reference.is_stac_reference = Mock(return_value=True)
 
     def create_point_gdf(self):
         """Helper to create a test GeoDataFrame with point geometries"""
@@ -60,7 +62,8 @@ class TestSummarizeOperation(unittest.TestCase):
         return gdf
 
     @patch("aws.osml.geoagents.spatial.summarize_operation.LocalAssets")
-    def test_operation_with_points(self, mock_context_manager):
+    @patch("aws.osml.geoagents.spatial.summarize_operation.create_stac_item_for_dataset")
+    def test_operation_with_points(self, mock_create_stac_item_for_dataset, mock_context_manager):
         """Test operation with point geometry dataset."""
         # Setup mock context manager
         mock_context = Mock()
@@ -74,12 +77,16 @@ class TestSummarizeOperation(unittest.TestCase):
         gdf = self.create_point_gdf()
         self.mock_workspace.read_geo_data_frame.return_value = gdf
 
+        # Set up mock for create_stac_item_for_dataset
+        mock_item = Mock()
+        mock_create_stac_item_for_dataset.return_value = mock_item
+
         # Execute operation
-        result = summarize_operation(dataset_georef=self.dataset_georef, workspace=self.mock_workspace)
+        result = summarize_operation(dataset_reference=self.dataset_reference, workspace=self.mock_workspace)
 
         # Verify response
         # Check for expected content in response
-        self.assertIn("Dataset georef:test-dataset contains 3 features.", result)
+        self.assertIn("Dataset stac:test-dataset contains 3 features.", result)
         self.assertIn("Dataset bounds (min_x, min_y, max_x, max_y): 0.000000, 0.000000, 2.000000, 2.000000", result)
         self.assertIn("geometry: Contains spatial features of type(s): Point", result)
         self.assertIn("name: General column", result)
@@ -89,7 +96,8 @@ class TestSummarizeOperation(unittest.TestCase):
         self.assertIn("timestamp: Date/time column", result)
 
     @patch("aws.osml.geoagents.spatial.summarize_operation.LocalAssets")
-    def test_operation_with_polygons(self, mock_context_manager):
+    @patch("aws.osml.geoagents.spatial.summarize_operation.create_stac_item_for_dataset")
+    def test_operation_with_polygons(self, mock_create_stac_item_for_dataset, mock_context_manager):
         """Test operation with polygon geometry dataset."""
         # Setup mock context manager
         mock_context = Mock()
@@ -103,19 +111,24 @@ class TestSummarizeOperation(unittest.TestCase):
         gdf = self.create_polygon_gdf()
         self.mock_workspace.read_geo_data_frame.return_value = gdf
 
+        # Set up mock for create_stac_item_for_dataset
+        mock_item = Mock()
+        mock_create_stac_item_for_dataset.return_value = mock_item
+
         # Execute operation
-        result = summarize_operation(dataset_georef=self.dataset_georef, workspace=self.mock_workspace)
+        result = summarize_operation(dataset_reference=self.dataset_reference, workspace=self.mock_workspace)
 
         # Verify response
         # Check for expected content in response
-        self.assertIn("Dataset georef:test-dataset contains 2 features.", result)
+        self.assertIn("Dataset stac:test-dataset contains 2 features.", result)
         self.assertIn("Dataset bounds (min_x, min_y, max_x, max_y): 0.000000, 0.000000, 2.000000, 2.000000", result)
         self.assertIn("geometry: Contains spatial features of type(s): Polygon", result)
         self.assertIn("area_name: General column", result)
         self.assertIn("area_size: Numeric column (float64) ranging from 1.0 to 1.0", result)
 
     @patch("aws.osml.geoagents.spatial.summarize_operation.LocalAssets")
-    def test_operation_with_metadata(self, mock_context_manager):
+    @patch("aws.osml.geoagents.spatial.summarize_operation.create_stac_item_for_dataset")
+    def test_operation_with_metadata(self, mock_create_stac_item_for_dataset, mock_context_manager):
         """Test operation processes column metadata correctly."""
         # Setup mock context manager
         mock_context = Mock()
@@ -129,8 +142,12 @@ class TestSummarizeOperation(unittest.TestCase):
         gdf = self.create_gdf_with_metadata()
         self.mock_workspace.read_geo_data_frame.return_value = gdf
 
+        # Set up mock for create_stac_item_for_dataset
+        mock_item = Mock()
+        mock_create_stac_item_for_dataset.return_value = mock_item
+
         # Execute operation
-        result = summarize_operation(dataset_georef=self.dataset_georef, workspace=self.mock_workspace)
+        result = summarize_operation(dataset_reference=self.dataset_reference, workspace=self.mock_workspace)
 
         # Verify response
         # Check for bounding box and metadata in response

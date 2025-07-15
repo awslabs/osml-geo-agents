@@ -8,7 +8,7 @@ import geopandas as gpd
 import shapely
 from pystac import Item
 
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, STACReference, Workspace
 from aws.osml.geoagents.spatial.filter_operation import filter_operation
 
 
@@ -19,8 +19,12 @@ class TestFilterOperation(unittest.TestCase):
         self.mock_workspace = Mock(spec=Workspace)
         self.mock_workspace.session_local_path = "/tmp"
 
-        # Create a mock georeference
-        self.dataset_georef = Mock(spec=Georeference)
+        # Create a mock GeoDataReference
+        self.dataset_reference = Mock(spec=GeoDataReference)
+        # Set up the reference_string property
+        self.dataset_reference.reference_string = "stac:test-dataset"
+        # Set up the is_stac_reference method to return True
+        self.dataset_reference.is_stac_reference = Mock(return_value=True)
 
         # Create a mock function name
         self.function_name = "FILTER"
@@ -30,13 +34,25 @@ class TestFilterOperation(unittest.TestCase):
 
     @patch("aws.osml.geoagents.spatial.filter_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.filter_operation.create_derived_stac_item")
-    def test_filter_operation_successful(self, mock_create_derived_stac_item, mock_local_assets):
+    @patch("aws.osml.geoagents.spatial.filter_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.filter_operation.STACReference")
+    def test_filter_operation_successful(
+        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+    ):
         """Test successful filtering of features."""
         # Set up mock for LocalAssets context manager
         mock_item = Mock(spec=Item)
         mock_item.properties = {"title": "Test Dataset"}
         mock_local_asset_paths = {"asset1": Path("/tmp/asset1.parquet")}
         mock_local_assets.return_value.__enter__.return_value = (mock_item, mock_local_asset_paths)
+
+        # Set up mock for create_stac_item_for_dataset
+        mock_create_stac_item_for_dataset.return_value = mock_item
+
+        # Set up mock for STACReference
+        mock_stac_ref = Mock(spec=STACReference)
+        mock_stac_ref.item_id = "test-item-id"
+        mock_stac_reference.new_from_timestamp.return_value = mock_stac_ref
 
         # Create a mock GeoDataFrame with points, some inside and some outside the filter bounds
         points = [
@@ -60,7 +76,7 @@ class TestFilterOperation(unittest.TestCase):
 
         # Call the operation function
         result = filter_operation(
-            dataset_georef=self.dataset_georef,
+            dataset_reference=self.dataset_reference,
             filter_bounds=self.filter_bounds,
             workspace=self.mock_workspace,
             function_name=self.function_name,

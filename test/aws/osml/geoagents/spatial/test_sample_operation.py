@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 import geopandas as gpd
 import shapely
 
-from aws.osml.geoagents.common import Georeference, Workspace
+from aws.osml.geoagents.common import GeoDataReference, Workspace
 from aws.osml.geoagents.spatial.sample_operation import sample_operation
 
 
@@ -17,14 +17,17 @@ class TestSampleOperation(unittest.TestCase):
         self.mock_workspace = Mock(spec=Workspace)
         self.mock_workspace.session_local_path = "/tmp"
 
-        # Create a mock georeference
-        self.dataset_georef = Mock(spec=Georeference)
+        # Create a mock GeoDataReference
+        self.dataset_reference = Mock(spec=GeoDataReference)
+        self.dataset_reference.reference_string = "stac:test-dataset"
+        self.dataset_reference.is_stac_reference = Mock(return_value=True)
 
         # Create mock number of features
         self.number_of_features = 3
 
     @patch("aws.osml.geoagents.spatial.sample_operation.LocalAssets")
-    def test_sample_operation_successful(self, mock_local_assets):
+    @patch("aws.osml.geoagents.spatial.sample_operation.create_stac_item_for_dataset")
+    def test_sample_operation_successful(self, mock_create_stac_item_for_dataset, mock_local_assets):
         """Test successful sampling of features."""
         # Set up mock for LocalAssets context manager
         mock_item = Mock()
@@ -48,9 +51,14 @@ class TestSampleOperation(unittest.TestCase):
         mock_gdf.crs = "EPSG:4326"
         self.mock_workspace.read_geo_data_frame.return_value = mock_gdf
 
+        # Set up mock for create_stac_item_for_dataset
+        mock_create_stac_item_for_dataset.return_value = mock_item
+
         # Call the operation function
         result = sample_operation(
-            dataset_georef=self.dataset_georef, number_of_features=self.number_of_features, workspace=self.mock_workspace
+            dataset_reference=self.dataset_reference,
+            number_of_features=self.number_of_features,
+            workspace=self.mock_workspace,
         )
 
         # Verify the result contains expected text
@@ -66,7 +74,8 @@ class TestSampleOperation(unittest.TestCase):
         self.mock_workspace.read_geo_data_frame.assert_called_once()
 
     @patch("aws.osml.geoagents.spatial.sample_operation.LocalAssets")
-    def test_sample_operation_default_number(self, mock_local_assets):
+    @patch("aws.osml.geoagents.spatial.sample_operation.create_stac_item_for_dataset")
+    def test_sample_operation_default_number(self, mock_create_stac_item_for_dataset, mock_local_assets):
         """Test sampling with default number of features."""
         # Set up mock for LocalAssets context manager
         mock_item = Mock()
@@ -79,8 +88,13 @@ class TestSampleOperation(unittest.TestCase):
         mock_gdf.crs = "EPSG:4326"
         self.mock_workspace.read_geo_data_frame.return_value = mock_gdf
 
+        # Set up mock for create_stac_item_for_dataset
+        mock_create_stac_item_for_dataset.return_value = mock_item
+
         # Call the operation function with None for number_of_features
-        result = sample_operation(dataset_georef=self.dataset_georef, number_of_features=None, workspace=self.mock_workspace)
+        result = sample_operation(
+            dataset_reference=self.dataset_reference, number_of_features=None, workspace=self.mock_workspace
+        )
 
         # Verify the result contains expected text for default 10 features
         self.assertIn("Sample of 10 features", result)
