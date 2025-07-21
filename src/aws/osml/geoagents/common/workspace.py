@@ -367,15 +367,20 @@ class Workspace:
             logger.error(f"Unable to create GeoDataFrame from: {os.path.basename(dataset_path)}", exc_info=True)
             raise ValueError(f"Unable to create GeoDataFrame from: {os.path.basename(dataset_path)}")
 
-    def select_active_geometry_column(self, gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    def combine_geometry_columns(self, gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         """
-        Create a copy of the GeoDataFrame with only the active geometry column.
+        Create a copy of the GeoDataFrame with all geometry columns combined into one.
 
         When a GeoDataFrame has multiple geometry columns, this function creates a copy
-        that retains only the active geometry column and drops all other geometry columns.
+        that combines all geometry columns into a single GeometryCollection and sets
+        this as the only geometry column in the result. If there's only one geometry
+        column, the original GeoDataFrame is returned unchanged.
+
+        This function ensures that any nested GeometryCollections are flattened before
+        adding them to the final GeometryCollection.
 
         :param gdf: Input GeoDataFrame that may have multiple geometry columns
-        :return: A GeoDataFrame with only the active geometry column
+        :return: A GeoDataFrame with only a single geometry column
         """
         geometry_cols = gdf.columns[gdf.dtypes == "geometry"]
 
@@ -384,6 +389,46 @@ class Workspace:
 
         result_gdf = gdf.copy()
         active_geom_col = gdf.geometry.name
+
+        # Combine all geometry columns into a GeometryCollection
+        from shapely.geometry import GeometryCollection
+
+        def flatten_geometry_collection(geom):
+            """
+            Recursively flatten a geometry, extracting all geometries from nested GeometryCollections.
+
+            :param geom: A shapely geometry object that might be a GeometryCollection
+            :return: A list of non-GeometryCollection geometries
+            """
+            if geom is None:
+                return []
+
+            if isinstance(geom, GeometryCollection):
+                # Recursively flatten each geometry in the collection
+                flattened = []
+                for g in geom.geoms:
+                    flattened.extend(flatten_geometry_collection(g))
+                return flattened
+            else:
+                # Return non-GeometryCollection geometries as-is
+                return [geom]
+
+        # Create a new geometry column with flattened GeometryCollection for each row
+        def combine_geometries(row):
+            # Get all non-None geometries from geometry columns
+            all_geometries = []
+            for col in geometry_cols:
+                if row[col] is not None:
+                    # Flatten any nested GeometryCollections
+                    all_geometries.extend(flatten_geometry_collection(row[col]))
+
+            # Create a new GeometryCollection with the flattened geometries
+            return GeometryCollection(all_geometries) if all_geometries else None
+
+        # Apply the function to create combined geometries
+        result_gdf[active_geom_col] = result_gdf.apply(combine_geometries, axis=1)
+
+        # Drop all other geometry columns
         cols_to_drop = [col for col in geometry_cols if col != active_geom_col]
         if cols_to_drop:
             result_gdf = result_gdf.drop(columns=cols_to_drop)
@@ -421,11 +466,11 @@ class Workspace:
 
             # Check if we're writing to GeoJSON and have multiple geometry columns
             if is_geojson:
-                # Use the utility function to select only the active geometry column if needed
-                write_gdf = self.select_active_geometry_column(dataset_gdf)
+                # Use the utility function to combine geometry columns if needed
+                write_gdf = self.combine_geometry_columns(dataset_gdf)
                 if write_gdf is not dataset_gdf:  # Only log if we actually made a change
                     logger.info(
-                        f"Multiple geometry columns detected. Using only the active geometry column for {os.path.basename(dataset_path)}"
+                        f"Multiple geometry columns detected. Combining all geometry columns for {os.path.basename(dataset_path)}"
                     )
 
             # This is a hack to work around some compatability issues between

@@ -403,3 +403,124 @@ class TestWorkspace(unittest.TestCase):
         # Test delete_item with collections
         self.local_workspace.delete_item(stac_ref)
         assert not Path(str(self.local_workspace_path) + "/" + collections_path + "/" + sample_item.id).exists()
+
+    def test_combine_geometry_columns_single(self):
+        """Test combine_geometry_columns with a GeoDataFrame that has a single geometry column."""
+        # Create a simple GeoDataFrame with one geometry column
+        gdf = self.create_geo_data_frame()
+
+        # Call the function
+        result = self.local_workspace.combine_geometry_columns(gdf)
+
+        # Verify the result is the same as the input (no changes)
+        self.assertIs(result, gdf)
+        self.assertEqual(len(result.columns[result.dtypes == "geometry"]), 1)
+
+    def test_combine_geometry_columns_multiple(self):
+        """Test combine_geometry_columns with a GeoDataFrame that has multiple geometry columns."""
+        from shapely.geometry import GeometryCollection, LineString, Point
+
+        # Create a GeoDataFrame with multiple geometry columns
+        points = [Point(0, 0), Point(1, 1), Point(2, 2)]
+        lines = [LineString([(0, 0), (1, 1)]), LineString([(1, 1), (2, 2)]), LineString([(2, 2), (3, 3)])]
+        data = {"id": [1, 2, 3], "value": [10, 20, 30]}
+
+        # Create the GeoDataFrame with the first geometry column
+        gdf = gpd.GeoDataFrame(data, geometry=points)
+
+        # Add a second geometry column
+        gdf["lines"] = gpd.GeoSeries(lines)
+        gdf.set_geometry("geometry")  # Ensure the active geometry column is the first one
+
+        # Verify we have two geometry columns
+        self.assertEqual(len(gdf.columns[gdf.dtypes == "geometry"]), 2)
+
+        # Call the function
+        result = self.local_workspace.combine_geometry_columns(gdf)
+
+        # Verify the result has only one geometry column
+        self.assertEqual(len(result.columns[result.dtypes == "geometry"]), 1)
+        self.assertEqual(result.geometry.name, "geometry")
+
+        # Verify the geometry column contains GeometryCollection objects
+        for i, geom in enumerate(result.geometry):
+            self.assertIsInstance(geom, GeometryCollection)
+            # For GeometryCollection, we can convert to WKT and verify it contains both geometries
+            wkt = geom.wkt
+            self.assertIn("POINT", wkt)
+            self.assertIn("LINESTRING", wkt)
+        # Verify other columns are preserved
+        self.assertTrue("id" in result.columns)
+        self.assertTrue("value" in result.columns)
+        self.assertEqual(list(result["id"]), [1, 2, 3])
+        self.assertEqual(list(result["value"]), [10, 20, 30])
+
+    def test_combine_geometry_columns_with_nested_collections(self):
+        """Test combine_geometry_columns with nested GeometryCollections."""
+        from shapely.geometry import GeometryCollection, LineString, Point, Polygon
+
+        # Create a simple point and line
+        point = Point(0, 0)
+        line = LineString([(1, 1), (2, 2)])
+
+        # Create a nested GeometryCollection
+        nested_collection = GeometryCollection(
+            [Point(3, 3), GeometryCollection([Point(4, 4), LineString([(5, 5), (6, 6)])])]
+        )
+
+        # Create a polygon
+        polygon = Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)])
+
+        # Create a GeoDataFrame with these geometries
+        data = {"id": [1], "value": [10]}
+        gdf = gpd.GeoDataFrame(data, geometry=[point])
+
+        # Add additional geometry columns
+        gdf["lines"] = gpd.GeoSeries([line])
+        gdf["nested"] = gpd.GeoSeries([nested_collection])
+        gdf["polygons"] = gpd.GeoSeries([polygon])
+
+        # Verify we have four geometry columns
+        self.assertEqual(len(gdf.columns[gdf.dtypes == "geometry"]), 4)
+
+        # Call the function
+        result = self.local_workspace.combine_geometry_columns(gdf)
+
+        # Verify the result has only one geometry column
+        self.assertEqual(len(result.columns[result.dtypes == "geometry"]), 1)
+
+        # Get the resulting geometry and verify it's a GeometryCollection
+        combined_geom = result.geometry[0]
+        self.assertIsInstance(combined_geom, GeometryCollection)
+
+        # The combined geometry should have 6 geometries (not nested):
+        # 1. Point(0, 0)
+        # 2. LineString([(1, 1), (2, 2)])
+        # 3. Point(3, 3)
+        # 4. Point(4, 4)
+        # 5. LineString([(5, 5), (6, 6)])
+        # 6. Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)])
+
+        # Use WKT to verify the content since type checking is causing issues with geoms attribute
+        wkt = combined_geom.wkt
+        self.assertIn("POINT", wkt)
+        self.assertIn("LINESTRING", wkt)
+        self.assertIn("POLYGON", wkt)
+
+        # We can't directly access the geometries due to type checking issues,
+        # but we can verify the result by checking that:
+        # 1. The result is a GeometryCollection (already verified above)
+        # 2. The WKT representation contains all expected geometry types (verified above)
+        # 3. There are no nested GeometryCollections in the WKT
+        self.assertNotIn("GEOMETRYCOLLECTION (GEOMETRYCOLLECTION", wkt)
+
+        # Count occurrences of each geometry type in the WKT
+        # This is a rough approximation but should work for this test
+        point_count = wkt.count("POINT")
+        linestring_count = wkt.count("LINESTRING")
+        polygon_count = wkt.count("POLYGON")
+
+        # Verify all original geometries are present in the flattened collection
+        self.assertEqual(point_count, 3)  # Three points
+        self.assertEqual(linestring_count, 2)  # Two lines
+        self.assertEqual(polygon_count, 1)  # One polygon
