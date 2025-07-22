@@ -8,8 +8,8 @@ from .append_operation import append_operation
 from .buffer_operation import buffer_operation
 from .cluster_operation import cluster_operation
 from .combine_operation import CombineType, combine_operation
-from .correlation_operation import CorrelationTypes, correlation_operation
-from .filter_operation import filter_operation
+from .correlation_operation import GeometryOperationType, correlation_operation
+from .filter_operation import FilterTypes, filter_operation
 from .sample_operation import sample_operation
 from .summarize_operation import summarize_operation
 from .translate_operation import translate_operation

@@ -15,8 +15,8 @@ from ..spatial.append_operation import append_operation
 from ..spatial.buffer_operation import buffer_operation
 from ..spatial.cluster_operation import cluster_operation
 from ..spatial.combine_operation import CombineType, combine_operation
-from ..spatial.correlation_operation import CorrelationTypes, correlation_operation
-from ..spatial.filter_operation import filter_operation
+from ..spatial.correlation_operation import GeometryOperationType, correlation_operation
+from ..spatial.filter_operation import FilterTypes, filter_operation
 from ..spatial.sample_operation import sample_operation
 from ..spatial.summarize_operation import summarize_operation
 from ..spatial.translate_operation import translate_operation
@@ -40,7 +40,8 @@ def buffer_geometry(
     distance: float = Field(description="Buffer distance in meters (must be positive)"),
 ) -> str:
     """
-    Buffer a geometry by a specified distance in meters.
+    Create a new geometry by expanding an input geometry by a specified distance in meters.
+    The output will be a geometry encoded as a Well Known Text (WKT) string.
     """
     logger.info(f"Buffering geometry with distance {distance}m")
 
@@ -59,7 +60,9 @@ def buffer_geometry(
 
 @mcp.tool()
 def cluster_features(
-    dataset: str = Field(description="GeoDataReference string for the dataset (STAC reference, WKT string, or local path)"),
+    dataset: str = Field(
+        description="Reference for the dataset (STAC reference (e.g. stac:ID#asset), WKT string, or local path)"
+    ),
     distance: float = Field(description="Distance threshold in meters for clustering"),
     max_clusters: Optional[int] = Field(
         description="Optional maximum number of clusters to return (largest first)", default=None
@@ -67,7 +70,10 @@ def cluster_features(
     output_format: str = Field(description="Format for the output file (geojson or parquet)", default="parquet"),
 ) -> str:
     """
-    Cluster features in a dataset using DBSCAN based on their geometric centers.
+    Create a new dataset by clustering features from the input dataset. The new dataset will have multiple
+    asset files. Each file will represent a cluster of features that are within the provided distance of
+    other features in the cluster. The new dataset and its asset files will be stored in the user's workspace.
+    The dataset references will be returned in the text result of this tool.
     """
     logger.info(f"Clustering features in {dataset} with distance {distance}m")
 
@@ -87,13 +93,10 @@ def cluster_features(
 @mcp.tool()
 def correlate_datasets(
     dataset1: str = Field(
-        description="GeoDataReference string for the first dataset (STAC reference, WKT string, or local path)"
+        description="Reference for the first dataset (STAC reference (e.g. stac:ID#asset), WKT string, or local path)"
     ),
     dataset2: str = Field(
-        description="GeoDataReference string for the second dataset (STAC reference, WKT string, or local path)"
-    ),
-    correlation_type: str = Field(
-        description='Type of correlation to perform ("intersection" or "difference")', default="intersection"
+        description="Reference for the second dataset (STAC reference (e.g. stac:ID#asset), WKT string, or local path)"
     ),
     distance: Optional[float] = Field(
         description="Optional buffer distance in meters to apply to the first dataset", default=None
@@ -104,10 +107,22 @@ def correlate_datasets(
     dataset2_geo_column: Optional[str] = Field(
         description="Optional name of the geometry column in the second dataset", default=None
     ),
+    geometry_operation: str = Field(
+        description='Operation to perform on geometries from matching rows ("left", "right", "collect", "union", "intersect", "difference")',
+        default="left",
+    ),
     output_format: str = Field(description="Format for the output file (geojson or parquet)", default="parquet"),
 ) -> str:
     """
-    Correlate two spatial datasets using a spatial join.
+    Create a new dataset that contains features from the first dataset that can be matched to the
+    features in a second dataset. The new features will have columns taken from pairs of matching
+    features. The new dataset will be stored in the user's workspace and will have a new asset that
+    contains the resulting features.
+
+    You can specify how to handle the geometries of matching features using the geometry_operation
+    parameter. This allows you to keep the geometry from the first dataset (left), use the geometry
+    from the second dataset (right), create a collection of both geometries (collect), or perform
+    geometric operations like union, intersection, or difference.
     """
     logger.info(f"Correlating datasets {dataset1} and {dataset2}")
 
@@ -116,22 +131,26 @@ def correlate_datasets(
         dataset1_ref = GeoDataReference(dataset1)
         dataset2_ref = GeoDataReference(dataset2)
 
-        # Convert correlation_type string to enum
-        corr_type = (
-            CorrelationTypes.INTERSECTION if correlation_type.lower() == "intersection" else CorrelationTypes.DIFFERENCE
-        )
+        # Convert geometry_operation string to enum
+        valid_geometry_operations = {op.value: op for op in GeometryOperationType}
+        geo_op_lower = geometry_operation.lower()
+        if geo_op_lower not in valid_geometry_operations:
+            valid_ops = ", ".join([f'"{op}"' for op in valid_geometry_operations.keys()])
+            return f"Error: Invalid geometry operation '{geometry_operation}'. Must be one of: {valid_ops}"
+
+        geo_op = valid_geometry_operations[geo_op_lower]
 
         # Call the correlation operation
         result = correlation_operation(
             dataset1_ref,
             dataset2_ref,
-            corr_type,
             distance,
             dataset1_geo_column,
             dataset2_geo_column,
             workspace,
             "correlate_datasets",
             output_format,
+            geo_op,
         )
 
         return result
@@ -143,13 +162,29 @@ def correlate_datasets(
 @mcp.tool()
 def filter_dataset(
     dataset: str = Field(
-        description="GeoDataReference string for the dataset to filter (STAC reference, WKT string, or local path)"
+        description="Reference for the dataset (STAC reference (e.g. stac:ID#asset), WKT string, or local path)"
     ),
-    filter: str = Field(description="WKT string representation of the geometry to use as a filter"),
+    filter: str = Field(
+        description="Reference for the geometry filter (STAC reference (e.g. stac:ID#asset), WKT string, or local path)"
+    ),
+    filter_type: str = Field(
+        description='Type of geometry filter to apply ("intersects" or "difference")', default="intersects"
+    ),
+    dataset_geo_column: Optional[str] = Field(
+        description="Optional name of the geometry column in the dataset", default=None
+    ),
+    filter_geo_column: Optional[str] = Field(
+        description="Optional name of the geometry column in the filter dataset", default=None
+    ),
     output_format: str = Field(description="Format for the output file (geojson or parquet)", default="parquet"),
 ) -> str:
     """
-    Filter a dataset to only contain features that intersect a given geometry.
+    Create a new dataset that contains features selected from the referenced dataset. The features included must
+    match all of the criteria provided. The new dataset will be stored in the user's workspace and the reference
+    of that dataset will be returned by this tool.
+
+    This operation can select features that either intersect or are different from the filter dataset provided.
+    The non-geometry columns of the filter dataset are not used.
     """
     logger.info(f"Filtering dataset {dataset}")
 
@@ -157,11 +192,23 @@ def filter_dataset(
         # Parse the dataset reference
         dataset_ref = GeoDataReference(dataset)
 
-        # Convert filter WKT string to Shapely geometry
-        filter_geometry = from_wkt(filter)
+        # Parse the filter reference
+        filter_ref = GeoDataReference(filter)
+
+        # Convert filter_type string to enum
+        filter_type_enum = FilterTypes.INTERSECTS if filter_type.lower() == "intersects" else FilterTypes.DIFFERENCE
 
         # Call the filter operation
-        result = filter_operation(dataset_ref, filter_geometry, workspace, "filter_dataset", output_format)
+        result = filter_operation(
+            dataset_ref,
+            filter_ref,
+            filter_type_enum,
+            workspace,
+            "filter_dataset",
+            dataset_geo_column,
+            filter_geo_column,
+            output_format,
+        )
 
         return result
     except Exception as e:
@@ -172,12 +219,13 @@ def filter_dataset(
 @mcp.tool()
 def sample_features(
     dataset: str = Field(
-        description="GeoDataReference string for the dataset to sample (STAC reference, WKT string, or local path)"
+        description="Reference for the dataset to sample (STAC reference (e.g. stac:ID#asset), WKT string, or local path)"
     ),
     number_of_features: int = Field(description="Number of features to sample", default=10),
 ) -> str:
     """
-    Return a text representation of features from a geodataset.
+    Read a small number (1-20) features from the referenced dataset and return the results as a table.
+    The dataset itself is unchanged.
     """
     logger.info(f"Sampling {number_of_features} features from {dataset}")
 
@@ -197,11 +245,12 @@ def sample_features(
 @mcp.tool()
 def summarize_dataset(
     dataset: str = Field(
-        description="GeoDataReference string for the dataset to summarize (STAC reference, WKT string, or local path)"
+        description="Reference for the dataset to summarize (STAC reference (e.g. stac:ID#asset), WKT string, or local path)"
     ),
 ) -> str:
     """
-    Generate a natural language description of columns in a geodataset.
+    Generate a natural language description of columns in the referenced dataset.
+    The dataset itself is unchanged.
     """
     logger.info(f"Summarizing dataset {dataset}")
 
@@ -225,7 +274,8 @@ def translate_geometry(
     heading: float = Field(description="Heading in degrees (0 = North, 90 = East, etc.)"),
 ) -> str:
     """
-    Translate a geometry by a specified distance and heading.
+    Move (translate) a geometry by a specified distance and heading.
+    The output will be a geometry encoded as a Well Known Text (WKT) string.
     """
     logger.info(f"Translating geometry {distance}m at heading {heading}°")
 
@@ -242,7 +292,8 @@ def translate_geometry(
         return f"Error translating geometry: {str(e)}"
 
 
-@mcp.tool()
+# Commented out this annotation to hide the combine geometries tool. Should be redundant if the new correlate works.
+# @mcp.tool()
 def combine_geometries(
     geometry1: str = Field(description="WKT string representation of the first geometry"),
     geometry2: str = Field(description="WKT string representation of the second geometry"),
@@ -250,6 +301,7 @@ def combine_geometries(
 ) -> str:
     """
     Combine two geometries using the specified operation (union, intersection, or difference).
+    The output will be a geometry encoded as a Well Known Text (WKT) string.
     """
     logger.info(f"Combining geometries using {operation} operation")
 
@@ -278,12 +330,14 @@ def combine_geometries(
 @mcp.tool()
 def append_datasets(
     datasets: list[str] = Field(
-        description="List of GeoDataReference strings for datasets to combine (STAC references, WKT strings, or local paths)"
+        description="List of references for datasets to combine (STAC reference (e.g. stac:ID#asset), WKT string, or local path)"
     ),
     output_format: str = Field(description="Format for the output file (geojson or parquet)", default="parquet"),
 ) -> str:
     """
-    Combine multiple datasets into a single result by appending them.
+    Create a new dataset that contains all of the features from the referenced datasets. The new dataset will be stored in
+    the user's workspace and the reference of that dataset will be returned by this tool.
+
     """
     logger.info(f"Appending datasets: {datasets}")
 

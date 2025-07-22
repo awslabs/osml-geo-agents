@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from ..common import Workspace
-from ..spatial import filter_operation
+from ..spatial import FilterTypes, filter_operation
 from .common_parameters import CommonParameters
 from .tool_base import ToolBase, ToolExecutionError
 
@@ -47,13 +47,33 @@ class FilterTool(ToolBase):
 
         try:
             # Parse and validate the required parameters
-            dataset_georef = CommonParameters.parse_dataset_georef(event, is_required=True)
-            filter_bounds = CommonParameters.parse_shape_parameter(event, param_name="filter", is_required=True)
+            dataset_georef = CommonParameters.parse_dataset_georef(event, "dataset", is_required=True)
+            filter_georef = CommonParameters.parse_dataset_georef(event, "filter", is_required=True)
+            dataset_geo_column = CommonParameters.parse_string_parameter(event, "dataset_geo_column_name", is_required=False)
+            filter_geo_column = CommonParameters.parse_string_parameter(event, "filter_geo_column_name", is_required=False)
+            filter_type_str = CommonParameters.parse_string_parameter(event, "filter_type", is_required=False)
+
+            # Determine the filter type
+            filter_type = FilterTypes.INTERSECTS
+            if filter_type_str:
+                try:
+                    filter_type = FilterTypes(filter_type_str.lower())
+                except ValueError:
+                    logger.warning(f"Invalid filter type: {filter_type_str}. Using default: {filter_type.value}")
+
+            # Ensure the required parameters are not None
+            if dataset_georef is None:
+                raise ToolExecutionError("Dataset reference is required")
+            if filter_georef is None:
+                raise ToolExecutionError("Filter reference is required")
 
             # Call the operation function
             text_result = filter_operation(
-                dataset_georef=dataset_georef,
-                filter_bounds=filter_bounds,
+                dataset_reference=dataset_georef,
+                filter_reference=filter_georef,
+                filter_type=filter_type,
+                dataset_geo_column=dataset_geo_column,
+                filter_geo_column=filter_geo_column,
                 workspace=workspace,
                 function_name=self.function_name,
             )
