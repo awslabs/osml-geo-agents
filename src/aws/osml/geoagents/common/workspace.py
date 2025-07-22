@@ -66,6 +66,17 @@ class Workspace:
         # For backward compatibility, extract user_id from prefix if it's the last component
         self.user_id = os.path.basename(self.prefix) if self.prefix else "shared"
 
+    def _get_stac_item_base_path(self, item_id: str, collections: Optional[List[str]] = None) -> str:
+        """
+        Convert a STAC item ID and optional collections to a local base path.
+
+        :param item_id: The ID of the STAC item
+        :param collections: Optional list of collections this item belongs to
+        :return: The base path for the STAC item
+        """
+        collections_path = "/".join(filter(None, collections)) + "/" if collections else ""
+        return f"{self.prefix}/stac/{collections_path}{item_id}"
+
     def get_item(self, stac_ref: STACReference) -> Item:
         """
         This method returns the STAC Item (summary information) for a STAC reference.
@@ -75,9 +86,9 @@ class Workspace:
         :param stac_ref: the STAC reference to retrieve
         :return: the STAC item
         """
-        # Construct the path for the item JSON, including collections if present
-        collections_path = "/".join(stac_ref.collections) + "/" if stac_ref.collections else ""
-        item_path = f"{self.prefix}/{collections_path}{stac_ref.item_id}/item.json"
+        # Get the base path for the item
+        item_base_path = self._get_stac_item_base_path(stac_ref.item_id, stac_ref.collections)
+        item_path = f"{item_base_path}/item.json"
 
         try:
             # Get the item JSON from the filesystem
@@ -97,21 +108,24 @@ class Workspace:
             # Use filesystem's ls method to list directories
             stac_refs: List[STACReference] = []
 
-            # List all directories at the prefix level
+            # List all directories under the stac directory
+            stac_dir = f"{self.prefix}/stac"
             try:
-                # Get all directories at the prefix level
-                dirs = self.filesystem.ls(self.prefix, detail=True)
+                # Check if the stac directory exists
+                if self.filesystem.exists(stac_dir):
+                    # Get all directories at the stac directory level
+                    dirs = self.filesystem.ls(stac_dir, detail=True)
 
-                # Filter for directories only
-                dirs = [d for d in dirs if d.get("type", None) == "directory"]
+                    # Filter for directories only
+                    dirs = [d for d in dirs if d.get("type", None) == "directory"]
 
-                for directory in dirs:
-                    # Extract the path components
-                    dir_path = directory["name"]
-                    # Start with an empty collections list
-                    self._process_directory(dir_path, [], stac_refs)
+                    for directory in dirs:
+                        # Extract the path components
+                        dir_path = directory["name"]
+                        # Start with an empty collections list
+                        self._process_directory(dir_path, [], stac_refs)
             except FileNotFoundError:
-                # If the prefix doesn't exist yet, return an empty list
+                # If the stac directory doesn't exist yet, return an empty list
                 pass
 
             return stac_refs
@@ -171,9 +185,8 @@ class Workspace:
         :param stac_ref: the STAC reference of the item to delete
         :raises Exception: if the item cannot be deleted
         """
-        # Delete the item and its assets from the filesystem
-        collections_path = "/".join(stac_ref.collections) + "/" if stac_ref.collections else ""
-        item_path = f"{self.prefix}/{collections_path}{stac_ref.item_id}"
+        # Get the base path for the item
+        item_path = self._get_stac_item_base_path(stac_ref.item_id, stac_ref.collections)
 
         try:
             # Check if the item exists
@@ -203,9 +216,8 @@ class Workspace:
         :param collections: optional list of collections this item belongs to
         :return: the STAC reference for the new item
         """
-        # Determine the base path for this item, including collections if present
-        collections_path = "/".join(collections) + "/" if collections else ""
-        item_base_path = f"{self.prefix}/{collections_path}{item.id}"
+        # Get the base path for this item
+        item_base_path = self._get_stac_item_base_path(item.id, collections)
 
         if temp_assets:
             for asset_key, local_path in temp_assets.items():

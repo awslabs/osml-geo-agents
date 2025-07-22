@@ -81,11 +81,11 @@ class TestWorkspace(unittest.TestCase):
         assert stac_ref is not None
 
         # Verify the item was published
-        item_path = Path(self.prefix) / sample_item.id / "item.json"
+        item_path = Path(self.prefix) / "stac" / sample_item.id / "item.json"
         assert self.s3fs.exists(item_path)
 
         # Verify the asset was published
-        asset_path = Path(self.prefix) / sample_item.id / "local-test-asset" / test_asset_path.name
+        asset_path = Path(self.prefix) / "stac" / sample_item.id / "local-test-asset" / test_asset_path.name
         assert self.s3fs.exists(asset_path)
 
         # Test get_item
@@ -100,7 +100,7 @@ class TestWorkspace(unittest.TestCase):
 
         # Test delete_item
         self.workspace.delete_item(stac_ref)
-        assert not self.s3fs.exists(str(Path(self.prefix) / sample_item.id))
+        assert not self.s3fs.exists(str(Path(self.prefix) / "stac" / sample_item.id))
 
     def test_local_filesystem(self):
         """Test using a local filesystem"""
@@ -120,11 +120,11 @@ class TestWorkspace(unittest.TestCase):
         assert stac_ref is not None
 
         # Verify the item was published
-        item_path = Path(self.local_workspace_path) / sample_item.id / "item.json"
+        item_path = Path(self.local_workspace_path) / "stac" / sample_item.id / "item.json"
         assert item_path.exists()
 
         # Verify the asset was published
-        asset_path = Path(self.local_workspace_path) / sample_item.id / "local-test-asset" / test_asset_path.name
+        asset_path = Path(self.local_workspace_path) / "stac" / sample_item.id / "local-test-asset" / test_asset_path.name
         assert asset_path.exists()
         assert asset_path.read_bytes() == test_content
 
@@ -140,7 +140,7 @@ class TestWorkspace(unittest.TestCase):
 
         # Test delete_item
         self.local_workspace.delete_item(stac_ref)
-        assert not Path(str(self.local_workspace_path) + "/" + sample_item.id).exists()
+        assert not Path(self.local_workspace_path, "stac", sample_item.id).exists()
 
     def test_is_parquet_file_true(self):
         """Test is_parquet_file with a valid Parquet file."""
@@ -381,12 +381,13 @@ class TestWorkspace(unittest.TestCase):
 
         # Verify the item was published in the correct collection path
         collections_path = "/".join(collections)
-        item_path = Path(self.local_workspace_path) / collections_path / sample_item.id / "item.json"
+        item_path = Path(self.local_workspace_path) / "stac" / collections_path / sample_item.id / "item.json"
         assert item_path.exists()
 
         # Verify the asset was published in the correct collection path
         asset_path = (
             Path(self.local_workspace_path)
+            / "stac"
             / collections_path
             / sample_item.id
             / "collection-test-asset"
@@ -402,7 +403,7 @@ class TestWorkspace(unittest.TestCase):
 
         # Test delete_item with collections
         self.local_workspace.delete_item(stac_ref)
-        assert not Path(str(self.local_workspace_path) + "/" + collections_path + "/" + sample_item.id).exists()
+        assert not Path(self.local_workspace_path, "stac", collections_path, sample_item.id).exists()
 
     def test_combine_geometry_columns_single(self):
         """Test combine_geometry_columns with a GeoDataFrame that has a single geometry column."""
