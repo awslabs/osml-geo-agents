@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from ..common import Workspace
-from ..spatial import CorrelationTypes, correlation_operation
+from ..spatial import correlation_operation
 from .common_parameters import CommonParameters
 from .tool_base import ToolBase, ToolExecutionError
 
@@ -54,15 +54,17 @@ class CorrelationTool(ToolBase):
                 event, "dataset2_geo_column_name", is_required=False
             )
             distance = CommonParameters.parse_distance(event, "distance")
-            correlation_type = CommonParameters.parse_enum_parameter(
-                event, CorrelationTypes, "correlation_type", is_required=False
-            )
+
+            # Ensure the required parameters are not None
+            if dataset1_georef is None:
+                raise ToolExecutionError("Dataset1 reference is required")
+            if dataset2_georef is None:
+                raise ToolExecutionError("Dataset2 reference is required")
 
             # Call the operation function
             text_result = correlation_operation(
-                dataset1_georef=dataset1_georef,
-                dataset2_georef=dataset2_georef,
-                correlation_type=correlation_type,
+                dataset1_reference=dataset1_georef,
+                dataset2_reference=dataset2_georef,
                 distance=distance,
                 dataset1_geo_column=dataset1_geo_column,
                 dataset2_geo_column=dataset2_geo_column,

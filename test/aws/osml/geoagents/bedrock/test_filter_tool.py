@@ -48,8 +48,11 @@ class TestFilterTool(unittest.TestCase):
 
         # Verify filter_operation was called with the correct parameters
         mock_filter_operation.assert_called_once_with(
-            dataset_georef=GeoDataReference("stac:test-dataset"),
-            filter_bounds=ANY,  # We can't directly compare shapely objects easily
+            dataset_reference=GeoDataReference("stac:test-dataset"),
+            filter_reference=GeoDataReference("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"),
+            filter_type=ANY,  # Using ANY since we can't easily compare enum values
+            dataset_geo_column=None,
+            filter_geo_column=None,
             workspace=self.mock_workspace,
             function_name=self.tool.function_name,
         )
