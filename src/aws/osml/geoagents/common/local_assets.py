@@ -106,7 +106,7 @@ class LocalAssets:
                             # Include collections in the path if present
                             collections_path = "/".join(stac_ref.collections) + "/" if stac_ref.collections else ""
                             local_asset_paths[asset_key] = (
-                                f"{workspace.prefix}/{collections_path}{item.id}/{asset_key}/{os.path.basename(asset.href)}"
+                                f"{workspace.prefix}/stac/{collections_path}{item.id}/{asset_key}/{os.path.basename(asset.href)}"
                             )
                     except Exception:
                         logger.warning(f"Error accessing {asset_key}", exc_info=True)

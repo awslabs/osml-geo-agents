@@ -61,7 +61,7 @@ class TestLocalAssets(unittest.TestCase):
         self.assertEqual(asset_paths["s3_asset"], "s3://bucket/path/to/file.tif")
         self.assertEqual(asset_paths["file_asset"], "file:///path/to/file.tif")
         self.assertEqual(
-            asset_paths["relative_asset"], f"{self.workspace.prefix}/{self.test_item.id}/relative_asset/test.geojson"
+            asset_paths["relative_asset"], f"{self.workspace.prefix}/stac/{self.test_item.id}/relative_asset/test.geojson"
         )
 
     def test_resolve_reference_to_assets_stac_with_collections(self):
@@ -80,7 +80,7 @@ class TestLocalAssets(unittest.TestCase):
         self.assertEqual(asset_paths["file_asset"], "file:///path/to/file.tif")
         self.assertEqual(
             asset_paths["relative_asset"],
-            f"{self.workspace.prefix}/collection1/collection2/{self.test_item.id}/relative_asset/test.geojson",
+            f"{self.workspace.prefix}/stac/collection1/collection2/{self.test_item.id}/relative_asset/test.geojson",
         )
 
     def test_resolve_reference_to_assets_stac_with_collections_and_asset_tag(self):
@@ -194,7 +194,8 @@ class TestLocalAssets(unittest.TestCase):
             self.assertEqual(asset_paths["s3_asset"], "s3://bucket/path/to/file.tif")
             self.assertEqual(asset_paths["file_asset"], "file:///path/to/file.tif")
             self.assertEqual(
-                asset_paths["relative_asset"], f"{self.workspace.prefix}/{self.test_item.id}/relative_asset/test.geojson"
+                asset_paths["relative_asset"],
+                f"{self.workspace.prefix}/stac/{self.test_item.id}/relative_asset/test.geojson",
             )
 
     def test_context_manager_stac_with_collections(self):
@@ -213,7 +214,7 @@ class TestLocalAssets(unittest.TestCase):
             self.assertEqual(asset_paths["file_asset"], "file:///path/to/file.tif")
             self.assertEqual(
                 asset_paths["relative_asset"],
-                f"{self.workspace.prefix}/collection1/collection2/{self.test_item.id}/relative_asset/test.geojson",
+                f"{self.workspace.prefix}/stac/collection1/collection2/{self.test_item.id}/relative_asset/test.geojson",
             )
 
     @patch("tempfile.NamedTemporaryFile")
