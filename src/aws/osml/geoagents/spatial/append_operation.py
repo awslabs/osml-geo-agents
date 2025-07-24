@@ -9,7 +9,7 @@ import geopandas as gpd
 import pandas as pd
 
 from ..common import GeoDataReference, LocalAssets, STACReference, Workspace
-from .spatial_utils import create_derived_stac_item, create_stac_item_for_dataset, validate_dataset_crs
+from .spatial_utils import create_derived_stac_item, load_geo_data_frame
 
 logger = logging.getLogger(__name__)
 
@@ -40,19 +40,8 @@ def append_operation(
 
         for reference in dataset_references:
             with LocalAssets(reference, workspace) as (item, local_assets):
-                selected_asset_key = next(iter(local_assets))
-                local_dataset_path = local_assets[selected_asset_key]
-                gdf = workspace.read_geo_data_frame(str(local_dataset_path))
-                validate_dataset_crs(gdf, reference)
-
-                # If item is None, create a new item from the GeoDataFrame
-                if item is None:
-                    item = create_stac_item_for_dataset(
-                        gdf,
-                        str(local_dataset_path),
-                        title=f"Dataset from {reference}",
-                        description=f"Dataset loaded from {reference}",
-                    )
+                # Load the dataset using the utility function
+                gdf, item, selected_asset_key = load_geo_data_frame(local_assets, workspace, reference, item)
 
                 items.append(item)
                 gdfs.append(gdf)

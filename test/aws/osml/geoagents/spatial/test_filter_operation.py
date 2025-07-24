@@ -37,10 +37,10 @@ class TestFilterOperation(unittest.TestCase):
 
     @patch("aws.osml.geoagents.spatial.filter_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.filter_operation.create_derived_stac_item")
-    @patch("aws.osml.geoagents.spatial.filter_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.filter_operation.load_geo_data_frame")
     @patch("aws.osml.geoagents.spatial.filter_operation.STACReference")
     def test_filter_operation_intersects(
-        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+        self, mock_stac_reference, mock_load_geo_data_frame, mock_create_derived_stac_item, mock_local_assets
     ):
         """Test successful filtering of features using INTERSECTS filter type."""
         # Set up mocks for LocalAssets context manager
@@ -74,11 +74,11 @@ class TestFilterOperation(unittest.TestCase):
         mock_filter_gdf = gpd.GeoDataFrame(geometry=filter_points)
         mock_filter_gdf.crs = "EPSG:4326"
 
-        # Configure read_geo_data_frame to return different GeoDataFrames on each call
-        self.mock_workspace.read_geo_data_frame.side_effect = [mock_gdf, mock_filter_gdf]
-
-        # Set up mock for create_stac_item_for_dataset
-        mock_create_stac_item_for_dataset.return_value = mock_item
+        # Configure load_geo_data_frame to return different values on each call
+        mock_load_geo_data_frame.side_effect = [
+            (mock_gdf, mock_item, "asset1"),
+            (mock_filter_gdf, mock_filter_item, "asset2"),
+        ]
 
         # Set up mock for STACReference
         mock_stac_ref = Mock(spec=STACReference)
@@ -106,17 +106,26 @@ class TestFilterOperation(unittest.TestCase):
 
         # Verify the mocks were called
         self.assertEqual(mock_local_assets.call_count, 2)
-        self.assertEqual(self.mock_workspace.read_geo_data_frame.call_count, 2)
+        self.assertEqual(mock_load_geo_data_frame.call_count, 2)
+
+        # Verify load_geo_data_frame was called with correct parameters
+        mock_load_geo_data_frame.assert_any_call(
+            mock_local_asset_paths, self.mock_workspace, self.dataset_reference, mock_item, self.dataset_geo_column
+        )
+        mock_load_geo_data_frame.assert_any_call(
+            mock_filter_asset_paths, self.mock_workspace, self.filter_reference, mock_filter_item, self.filter_geo_column
+        )
+
         self.mock_workspace.write_geo_data_frame.assert_called_once()
         mock_create_derived_stac_item.assert_called_once()
         self.mock_workspace.create_item.assert_called_once()
 
     @patch("aws.osml.geoagents.spatial.filter_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.filter_operation.create_derived_stac_item")
-    @patch("aws.osml.geoagents.spatial.filter_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.filter_operation.load_geo_data_frame")
     @patch("aws.osml.geoagents.spatial.filter_operation.STACReference")
     def test_filter_operation_difference(
-        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+        self, mock_stac_reference, mock_load_geo_data_frame, mock_create_derived_stac_item, mock_local_assets
     ):
         """Test successful filtering of features using DIFFERENCE filter type."""
         # Set up mocks for LocalAssets context manager
@@ -150,11 +159,11 @@ class TestFilterOperation(unittest.TestCase):
         mock_filter_gdf = gpd.GeoDataFrame(geometry=filter_points)
         mock_filter_gdf.crs = "EPSG:4326"
 
-        # Configure read_geo_data_frame to return different GeoDataFrames on each call
-        self.mock_workspace.read_geo_data_frame.side_effect = [mock_gdf, mock_filter_gdf]
-
-        # Set up mock for create_stac_item_for_dataset
-        mock_create_stac_item_for_dataset.return_value = mock_item
+        # Configure load_geo_data_frame to return different values on each call
+        mock_load_geo_data_frame.side_effect = [
+            (mock_gdf, mock_item, "asset1"),
+            (mock_filter_gdf, mock_filter_item, "asset2"),
+        ]
 
         # Set up mock for STACReference
         mock_stac_ref = Mock(spec=STACReference)
@@ -182,7 +191,16 @@ class TestFilterOperation(unittest.TestCase):
 
         # Verify the mocks were called
         self.assertEqual(mock_local_assets.call_count, 2)
-        self.assertEqual(self.mock_workspace.read_geo_data_frame.call_count, 2)
+        self.assertEqual(mock_load_geo_data_frame.call_count, 2)
+
+        # Verify load_geo_data_frame was called with correct parameters
+        mock_load_geo_data_frame.assert_any_call(
+            mock_local_asset_paths, self.mock_workspace, self.dataset_reference, mock_item, self.dataset_geo_column
+        )
+        mock_load_geo_data_frame.assert_any_call(
+            mock_filter_asset_paths, self.mock_workspace, self.filter_reference, mock_filter_item, self.filter_geo_column
+        )
+
         self.mock_workspace.write_geo_data_frame.assert_called_once()
         mock_create_derived_stac_item.assert_called_once()
         self.mock_workspace.create_item.assert_called_once()

@@ -11,7 +11,7 @@ from pyproj import CRS
 from shapely.geometry import GeometryCollection
 
 from ..common import GeoDataReference, LocalAssets, STACReference, Workspace
-from .spatial_utils import create_derived_stac_item, create_stac_item_for_dataset, validate_dataset_crs
+from .spatial_utils import create_derived_stac_item, load_geo_data_frame
 
 logger = logging.getLogger(__name__)
 
@@ -64,38 +64,15 @@ def correlation_operation(
             local_assets2,
         ):
 
-            # Select the assets to process and load them into memory
-            selected_asset_key1 = next(iter(local_assets1))
-            local_dataset_path1 = local_assets1[selected_asset_key1]
-            gdf1 = workspace.read_geo_data_frame(str(local_dataset_path1))
-            if dataset1_geo_column:
-                gdf1.set_geometry(dataset1_geo_column, inplace=True)
-            validate_dataset_crs(gdf1, dataset1_reference)
+            # Load the first dataset using the utility function
+            gdf1, item1, selected_asset_key1 = load_geo_data_frame(
+                local_assets1, workspace, dataset1_reference, item1, dataset1_geo_column
+            )
 
-            # If item1 is None, create a new item from the GeoDataFrame
-            if item1 is None:
-                item1 = create_stac_item_for_dataset(
-                    gdf1,
-                    str(local_dataset_path1),
-                    title=f"Dataset from {dataset1_reference}",
-                    description=f"Dataset loaded from {dataset1_reference}",
-                )
-
-            selected_asset_key2 = next(iter(local_assets2))
-            local_dataset_path2 = local_assets2[selected_asset_key2]
-            gdf2 = workspace.read_geo_data_frame(str(local_dataset_path2))
-            if dataset2_geo_column:
-                gdf2.set_geometry(dataset2_geo_column, inplace=True)
-            validate_dataset_crs(gdf2, dataset2_reference)
-
-            # If item2 is None, create a new item from the GeoDataFrame
-            if item2 is None:
-                item2 = create_stac_item_for_dataset(
-                    gdf2,
-                    str(local_dataset_path2),
-                    title=f"Dataset from {dataset2_reference}",
-                    description=f"Dataset loaded from {dataset2_reference}",
-                )
+            # Load the second dataset using the utility function
+            gdf2, item2, selected_asset_key2 = load_geo_data_frame(
+                local_assets2, workspace, dataset2_reference, item2, dataset2_geo_column
+            )
 
             # Get the actual geometry column names for both GeoDataFrames
             gdf1_geo_column = gdf1.geometry.name

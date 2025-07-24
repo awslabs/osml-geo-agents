@@ -4,7 +4,7 @@ import logging
 from typing import Any, Optional
 
 from ..common import GeoDataReference, LocalAssets, Workspace
-from .spatial_utils import create_stac_item_for_dataset
+from .spatial_utils import load_geo_data_frame
 
 logger = logging.getLogger(__name__)
 
@@ -45,19 +45,8 @@ def sample_operation(
 
         # Use context manager to handle local assets
         with LocalAssets(dataset_reference, workspace) as (item, local_asset_paths):
-            # Select the assets to process and load them into memory
-            selected_asset_key = next(iter(local_asset_paths))
-            local_dataset_path = local_asset_paths[selected_asset_key]
-            gdf = workspace.read_geo_data_frame(str(local_dataset_path))
-
-            # If item is None, create a new item from the GeoDataFrame
-            if item is None:
-                item = create_stac_item_for_dataset(
-                    gdf,
-                    str(local_dataset_path),
-                    title=f"Dataset from {dataset_reference}",
-                    description=f"Dataset loaded from {dataset_reference}",
-                )
+            # Load the dataset using the utility function
+            gdf, item, selected_asset_key = load_geo_data_frame(local_asset_paths, workspace, dataset_reference, item, None)
 
             # Get the requested number of features
             sampled_gdf = gdf.head(num_features)

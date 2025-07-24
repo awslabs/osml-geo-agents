@@ -9,7 +9,7 @@ from typing import Optional
 import geopandas as gpd
 
 from ..common import GeoDataReference, LocalAssets, STACReference, Workspace
-from .spatial_utils import create_derived_stac_item, create_stac_item_for_dataset, validate_dataset_crs
+from .spatial_utils import create_derived_stac_item, load_geo_data_frame
 
 logger = logging.getLogger(__name__)
 
@@ -58,39 +58,15 @@ def filter_operation(
             filter_item,
             filter_local_asset_paths,
         ):
-            # Select the assets to process and load them into memory
-            selected_asset_key = next(iter(local_asset_paths))
-            local_dataset_path = local_asset_paths[selected_asset_key]
-            gdf = workspace.read_geo_data_frame(str(local_dataset_path))
-            if dataset_geo_column:
-                gdf.set_geometry(dataset_geo_column, inplace=True)
-            validate_dataset_crs(gdf, dataset_reference)
+            # Load the dataset using the utility function
+            gdf, item, selected_asset_key = load_geo_data_frame(
+                local_asset_paths, workspace, dataset_reference, item, dataset_geo_column
+            )
 
-            # If item is None, create a new item from the GeoDataFrame
-            if item is None:
-                item = create_stac_item_for_dataset(
-                    gdf,
-                    str(local_dataset_path),
-                    title=f"Dataset from {dataset_reference}",
-                    description=f"Dataset loaded from {dataset_reference}",
-                )
-
-            # Load the filter dataset
-            filter_asset_key = next(iter(filter_local_asset_paths))
-            filter_dataset_path = filter_local_asset_paths[filter_asset_key]
-            filter_gdf = workspace.read_geo_data_frame(str(filter_dataset_path))
-            if filter_geo_column:
-                filter_gdf.set_geometry(filter_geo_column, inplace=True)
-            validate_dataset_crs(filter_gdf, filter_reference)
-
-            # If filter_item is None, create a new item from the GeoDataFrame
-            if filter_item is None:
-                filter_item = create_stac_item_for_dataset(
-                    filter_gdf,
-                    str(filter_dataset_path),
-                    title=f"Dataset from {filter_reference}",
-                    description=f"Dataset loaded from {filter_reference}",
-                )
+            # Load the filter dataset using the utility function
+            filter_gdf, filter_item, filter_asset_key = load_geo_data_frame(
+                filter_local_asset_paths, workspace, filter_reference, filter_item, filter_geo_column
+            )
 
             # Run the filter operation
             if filter_type == FilterTypes.INTERSECTS:
