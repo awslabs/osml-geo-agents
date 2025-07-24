@@ -40,10 +40,10 @@ class TestCorrelationOperation(unittest.TestCase):
 
     @patch("aws.osml.geoagents.spatial.correlation_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.correlation_operation.create_derived_stac_item")
-    @patch("aws.osml.geoagents.spatial.correlation_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.correlation_operation.load_geo_data_frame")
     @patch("aws.osml.geoagents.spatial.correlation_operation.STACReference")
     def test_correlation_operation(
-        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+        self, mock_stac_reference, mock_load_geo_data_frame, mock_create_derived_stac_item, mock_local_assets
     ):
         """Test successful correlation."""
         # Set up mocks for LocalAssets context manager
@@ -71,15 +71,12 @@ class TestCorrelationOperation(unittest.TestCase):
         gdf2 = gpd.GeoDataFrame(geometry=[polygon2])
         gdf2.crs = "EPSG:4326"
 
-        # Configure read_geo_data_frame to return different GeoDataFrames on each call
-        self.mock_workspace.read_geo_data_frame.side_effect = [gdf1, gdf2]
+        # Set up mock for load_geo_data_frame to return different values for each dataset
+        mock_load_geo_data_frame.side_effect = [(gdf1, mock_item1, "asset1"), (gdf2, mock_item2, "asset2")]
 
         # Set up mock for create_derived_stac_item
         mock_derived_item = Mock(spec=Item)
         mock_create_derived_stac_item.return_value = mock_derived_item
-
-        # Set up mock for create_stac_item_for_dataset
-        mock_create_stac_item_for_dataset.return_value = mock_item1
 
         # Set up mock for STACReference
         mock_stac_ref = Mock(spec=STACReference)
@@ -103,17 +100,17 @@ class TestCorrelationOperation(unittest.TestCase):
 
         # Verify the mocks were called
         self.assertEqual(mock_local_assets.call_count, 2)
-        self.assertEqual(self.mock_workspace.read_geo_data_frame.call_count, 2)
+        self.assertEqual(mock_load_geo_data_frame.call_count, 2)
         self.mock_workspace.write_geo_data_frame.assert_called_once()
         mock_create_derived_stac_item.assert_called_once()
         self.mock_workspace.create_item.assert_called_once()
 
     @patch("aws.osml.geoagents.spatial.correlation_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.correlation_operation.create_derived_stac_item")
-    @patch("aws.osml.geoagents.spatial.correlation_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.correlation_operation.load_geo_data_frame")
     @patch("aws.osml.geoagents.spatial.correlation_operation.STACReference")
     def test_correlation_operation_right_geometry(
-        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+        self, mock_stac_reference, mock_load_geo_data_frame, mock_create_derived_stac_item, mock_local_assets
     ):
         """Test intersection correlation with RIGHT geometry operation."""
         # Set up mocks for LocalAssets context manager
@@ -141,15 +138,12 @@ class TestCorrelationOperation(unittest.TestCase):
         gdf2 = gpd.GeoDataFrame(geometry=[polygon2])
         gdf2.crs = "EPSG:4326"
 
-        # Configure read_geo_data_frame to return different GeoDataFrames on each call
-        self.mock_workspace.read_geo_data_frame.side_effect = [gdf1, gdf2]
+        # Set up mock for load_geo_data_frame to return different values for each dataset
+        mock_load_geo_data_frame.side_effect = [(gdf1, mock_item1, "asset1"), (gdf2, mock_item2, "asset2")]
 
         # Set up mock for create_derived_stac_item
         mock_derived_item = Mock(spec=Item)
         mock_create_derived_stac_item.return_value = mock_derived_item
-
-        # Set up mock for create_stac_item_for_dataset
-        mock_create_stac_item_for_dataset.return_value = mock_item1
 
         # Set up mock for STACReference
         mock_stac_ref = Mock(spec=STACReference)
@@ -175,17 +169,17 @@ class TestCorrelationOperation(unittest.TestCase):
 
         # Verify the mocks were called
         self.assertEqual(mock_local_assets.call_count, 2)
-        self.assertEqual(self.mock_workspace.read_geo_data_frame.call_count, 2)
+        self.assertEqual(mock_load_geo_data_frame.call_count, 2)
         self.mock_workspace.write_geo_data_frame.assert_called_once()
         mock_create_derived_stac_item.assert_called_once()
         self.mock_workspace.create_item.assert_called_once()
 
     @patch("aws.osml.geoagents.spatial.correlation_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.correlation_operation.create_derived_stac_item")
-    @patch("aws.osml.geoagents.spatial.correlation_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.correlation_operation.load_geo_data_frame")
     @patch("aws.osml.geoagents.spatial.correlation_operation.STACReference")
     def test_correlation_operation_collect_geometry(
-        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+        self, mock_stac_reference, mock_load_geo_data_frame, mock_create_derived_stac_item, mock_local_assets
     ):
         """Test intersection correlation with COLLECT geometry operation."""
         # Set up mocks for LocalAssets context manager
@@ -213,15 +207,12 @@ class TestCorrelationOperation(unittest.TestCase):
         gdf2 = gpd.GeoDataFrame(geometry=[polygon2])
         gdf2.crs = "EPSG:4326"
 
-        # Configure read_geo_data_frame to return different GeoDataFrames on each call
-        self.mock_workspace.read_geo_data_frame.side_effect = [gdf1, gdf2]
+        # Set up mock for load_geo_data_frame to return different values for each dataset
+        mock_load_geo_data_frame.side_effect = [(gdf1, mock_item1, "asset1"), (gdf2, mock_item2, "asset2")]
 
         # Set up mock for create_derived_stac_item
         mock_derived_item = Mock(spec=Item)
         mock_create_derived_stac_item.return_value = mock_derived_item
-
-        # Set up mock for create_stac_item_for_dataset
-        mock_create_stac_item_for_dataset.return_value = mock_item1
 
         # Set up mock for STACReference
         mock_stac_ref = Mock(spec=STACReference)
@@ -247,17 +238,17 @@ class TestCorrelationOperation(unittest.TestCase):
 
         # Verify the mocks were called
         self.assertEqual(mock_local_assets.call_count, 2)
-        self.assertEqual(self.mock_workspace.read_geo_data_frame.call_count, 2)
+        self.assertEqual(mock_load_geo_data_frame.call_count, 2)
         self.mock_workspace.write_geo_data_frame.assert_called_once()
         mock_create_derived_stac_item.assert_called_once()
         self.mock_workspace.create_item.assert_called_once()
 
     @patch("aws.osml.geoagents.spatial.correlation_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.correlation_operation.create_derived_stac_item")
-    @patch("aws.osml.geoagents.spatial.correlation_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.correlation_operation.load_geo_data_frame")
     @patch("aws.osml.geoagents.spatial.correlation_operation.STACReference")
     def test_correlation_operation_union_geometry(
-        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+        self, mock_stac_reference, mock_load_geo_data_frame, mock_create_derived_stac_item, mock_local_assets
     ):
         """Test intersection correlation with UNION geometry operation."""
         # Set up mocks for LocalAssets context manager
@@ -285,15 +276,12 @@ class TestCorrelationOperation(unittest.TestCase):
         gdf2 = gpd.GeoDataFrame(geometry=[polygon2])
         gdf2.crs = "EPSG:4326"
 
-        # Configure read_geo_data_frame to return different GeoDataFrames on each call
-        self.mock_workspace.read_geo_data_frame.side_effect = [gdf1, gdf2]
+        # Set up mock for load_geo_data_frame to return different values for each dataset
+        mock_load_geo_data_frame.side_effect = [(gdf1, mock_item1, "asset1"), (gdf2, mock_item2, "asset2")]
 
         # Set up mock for create_derived_stac_item
         mock_derived_item = Mock(spec=Item)
         mock_create_derived_stac_item.return_value = mock_derived_item
-
-        # Set up mock for create_stac_item_for_dataset
-        mock_create_stac_item_for_dataset.return_value = mock_item1
 
         # Set up mock for STACReference
         mock_stac_ref = Mock(spec=STACReference)
@@ -319,17 +307,17 @@ class TestCorrelationOperation(unittest.TestCase):
 
         # Verify the mocks were called
         self.assertEqual(mock_local_assets.call_count, 2)
-        self.assertEqual(self.mock_workspace.read_geo_data_frame.call_count, 2)
+        self.assertEqual(mock_load_geo_data_frame.call_count, 2)
         self.mock_workspace.write_geo_data_frame.assert_called_once()
         mock_create_derived_stac_item.assert_called_once()
         self.mock_workspace.create_item.assert_called_once()
 
     @patch("aws.osml.geoagents.spatial.correlation_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.correlation_operation.create_derived_stac_item")
-    @patch("aws.osml.geoagents.spatial.correlation_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.correlation_operation.load_geo_data_frame")
     @patch("aws.osml.geoagents.spatial.correlation_operation.STACReference")
     def test_correlation_operation_intersect_geometry(
-        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+        self, mock_stac_reference, mock_load_geo_data_frame, mock_create_derived_stac_item, mock_local_assets
     ):
         """Test intersection correlation with INTERSECT geometry operation."""
         # Set up mocks for LocalAssets context manager
@@ -357,15 +345,12 @@ class TestCorrelationOperation(unittest.TestCase):
         gdf2 = gpd.GeoDataFrame(geometry=[polygon2])
         gdf2.crs = "EPSG:4326"
 
-        # Configure read_geo_data_frame to return different GeoDataFrames on each call
-        self.mock_workspace.read_geo_data_frame.side_effect = [gdf1, gdf2]
+        # Set up mock for load_geo_data_frame to return different values for each dataset
+        mock_load_geo_data_frame.side_effect = [(gdf1, mock_item1, "asset1"), (gdf2, mock_item2, "asset2")]
 
         # Set up mock for create_derived_stac_item
         mock_derived_item = Mock(spec=Item)
         mock_create_derived_stac_item.return_value = mock_derived_item
-
-        # Set up mock for create_stac_item_for_dataset
-        mock_create_stac_item_for_dataset.return_value = mock_item1
 
         # Set up mock for STACReference
         mock_stac_ref = Mock(spec=STACReference)
@@ -391,17 +376,17 @@ class TestCorrelationOperation(unittest.TestCase):
 
         # Verify the mocks were called
         self.assertEqual(mock_local_assets.call_count, 2)
-        self.assertEqual(self.mock_workspace.read_geo_data_frame.call_count, 2)
+        self.assertEqual(mock_load_geo_data_frame.call_count, 2)
         self.mock_workspace.write_geo_data_frame.assert_called_once()
         mock_create_derived_stac_item.assert_called_once()
         self.mock_workspace.create_item.assert_called_once()
 
     @patch("aws.osml.geoagents.spatial.correlation_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.correlation_operation.create_derived_stac_item")
-    @patch("aws.osml.geoagents.spatial.correlation_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.correlation_operation.load_geo_data_frame")
     @patch("aws.osml.geoagents.spatial.correlation_operation.STACReference")
     def test_correlation_operation_difference_geometry(
-        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+        self, mock_stac_reference, mock_load_geo_data_frame, mock_create_derived_stac_item, mock_local_assets
     ):
         """Test intersection correlation with DIFFERENCE geometry operation."""
         # Set up mocks for LocalAssets context manager
@@ -429,15 +414,12 @@ class TestCorrelationOperation(unittest.TestCase):
         gdf2 = gpd.GeoDataFrame(geometry=[polygon2])
         gdf2.crs = "EPSG:4326"
 
-        # Configure read_geo_data_frame to return different GeoDataFrames on each call
-        self.mock_workspace.read_geo_data_frame.side_effect = [gdf1, gdf2]
+        # Set up mock for load_geo_data_frame to return different values for each dataset
+        mock_load_geo_data_frame.side_effect = [(gdf1, mock_item1, "asset1"), (gdf2, mock_item2, "asset2")]
 
         # Set up mock for create_derived_stac_item
         mock_derived_item = Mock(spec=Item)
         mock_create_derived_stac_item.return_value = mock_derived_item
-
-        # Set up mock for create_stac_item_for_dataset
-        mock_create_stac_item_for_dataset.return_value = mock_item1
 
         # Set up mock for STACReference
         mock_stac_ref = Mock(spec=STACReference)
@@ -463,7 +445,7 @@ class TestCorrelationOperation(unittest.TestCase):
 
         # Verify the mocks were called
         self.assertEqual(mock_local_assets.call_count, 2)
-        self.assertEqual(self.mock_workspace.read_geo_data_frame.call_count, 2)
+        self.assertEqual(mock_load_geo_data_frame.call_count, 2)
         self.mock_workspace.write_geo_data_frame.assert_called_once()
         mock_create_derived_stac_item.assert_called_once()
         self.mock_workspace.create_item.assert_called_once()

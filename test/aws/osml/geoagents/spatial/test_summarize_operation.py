@@ -62,24 +62,17 @@ class TestSummarizeOperation(unittest.TestCase):
         return gdf
 
     @patch("aws.osml.geoagents.spatial.summarize_operation.LocalAssets")
-    @patch("aws.osml.geoagents.spatial.summarize_operation.create_stac_item_for_dataset")
-    def test_operation_with_points(self, mock_create_stac_item_for_dataset, mock_context_manager):
+    @patch("aws.osml.geoagents.spatial.summarize_operation.load_geo_data_frame")
+    def test_operation_with_points(self, mock_load_geo_data_frame, mock_context_manager):
         """Test operation with point geometry dataset."""
         # Setup mock context manager
-        mock_context = Mock()
-        mock_enter = Mock()
-        mock_exit = Mock()
-        mock_context.__enter__ = mock_enter
-        mock_enter.return_value = (None, {0: Path("/tmp/test.geojson")})
-        mock_context.__exit__ = mock_exit
-        mock_exit.return_value = None
-        mock_context_manager.return_value = mock_context
-        gdf = self.create_point_gdf()
-        self.mock_workspace.read_geo_data_frame.return_value = gdf
-
-        # Set up mock for create_stac_item_for_dataset
         mock_item = Mock()
-        mock_create_stac_item_for_dataset.return_value = mock_item
+        mock_local_asset_paths = {0: Path("/tmp/test.geojson")}
+        mock_context_manager.return_value.__enter__.return_value = (mock_item, mock_local_asset_paths)
+
+        # Setup mock for load_geo_data_frame
+        gdf = self.create_point_gdf()
+        mock_load_geo_data_frame.return_value = (gdf, mock_item, 0)
 
         # Execute operation
         result = summarize_operation(dataset_reference=self.dataset_reference, workspace=self.mock_workspace)
@@ -96,24 +89,17 @@ class TestSummarizeOperation(unittest.TestCase):
         self.assertIn("timestamp: Date/time column", result)
 
     @patch("aws.osml.geoagents.spatial.summarize_operation.LocalAssets")
-    @patch("aws.osml.geoagents.spatial.summarize_operation.create_stac_item_for_dataset")
-    def test_operation_with_polygons(self, mock_create_stac_item_for_dataset, mock_context_manager):
+    @patch("aws.osml.geoagents.spatial.summarize_operation.load_geo_data_frame")
+    def test_operation_with_polygons(self, mock_load_geo_data_frame, mock_context_manager):
         """Test operation with polygon geometry dataset."""
         # Setup mock context manager
-        mock_context = Mock()
-        mock_enter = Mock()
-        mock_exit = Mock()
-        mock_context.__enter__ = mock_enter
-        mock_enter.return_value = (None, {0: Path("/tmp/test.geojson")})
-        mock_context.__exit__ = mock_exit
-        mock_exit.return_value = None
-        mock_context_manager.return_value = mock_context
-        gdf = self.create_polygon_gdf()
-        self.mock_workspace.read_geo_data_frame.return_value = gdf
-
-        # Set up mock for create_stac_item_for_dataset
         mock_item = Mock()
-        mock_create_stac_item_for_dataset.return_value = mock_item
+        mock_local_asset_paths = {0: Path("/tmp/test.geojson")}
+        mock_context_manager.return_value.__enter__.return_value = (mock_item, mock_local_asset_paths)
+
+        # Setup mock for load_geo_data_frame
+        gdf = self.create_polygon_gdf()
+        mock_load_geo_data_frame.return_value = (gdf, mock_item, 0)
 
         # Execute operation
         result = summarize_operation(dataset_reference=self.dataset_reference, workspace=self.mock_workspace)
@@ -127,24 +113,17 @@ class TestSummarizeOperation(unittest.TestCase):
         self.assertIn("area_size: Numeric column (float64) ranging from 1.0 to 1.0", result)
 
     @patch("aws.osml.geoagents.spatial.summarize_operation.LocalAssets")
-    @patch("aws.osml.geoagents.spatial.summarize_operation.create_stac_item_for_dataset")
-    def test_operation_with_metadata(self, mock_create_stac_item_for_dataset, mock_context_manager):
+    @patch("aws.osml.geoagents.spatial.summarize_operation.load_geo_data_frame")
+    def test_operation_with_metadata(self, mock_load_geo_data_frame, mock_context_manager):
         """Test operation processes column metadata correctly."""
         # Setup mock context manager
-        mock_context = Mock()
-        mock_enter = Mock()
-        mock_exit = Mock()
-        mock_context.__enter__ = mock_enter
-        mock_enter.return_value = (None, {0: Path("/tmp/test.geojson")})
-        mock_context.__exit__ = mock_exit
-        mock_exit.return_value = None
-        mock_context_manager.return_value = mock_context
-        gdf = self.create_gdf_with_metadata()
-        self.mock_workspace.read_geo_data_frame.return_value = gdf
-
-        # Set up mock for create_stac_item_for_dataset
         mock_item = Mock()
-        mock_create_stac_item_for_dataset.return_value = mock_item
+        mock_local_asset_paths = {0: Path("/tmp/test.geojson")}
+        mock_context_manager.return_value.__enter__.return_value = (mock_item, mock_local_asset_paths)
+
+        # Setup mock for load_geo_data_frame
+        gdf = self.create_gdf_with_metadata()
+        mock_load_geo_data_frame.return_value = (gdf, mock_item, 0)
 
         # Execute operation
         result = summarize_operation(dataset_reference=self.dataset_reference, workspace=self.mock_workspace)

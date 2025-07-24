@@ -5,15 +5,17 @@ from datetime import datetime
 from unittest.mock import Mock
 
 import geopandas as gpd
+import pandas as pd
 import shapely
 from pystac import Item
 from shapely.geometry import Point
 
-from aws.osml.geoagents.common import GeoDataReference
+from aws.osml.geoagents.common import GeoDataReference, Workspace
 from aws.osml.geoagents.spatial.spatial_utils import (
     create_derived_stac_item,
     create_length_limited_wkt,
     create_stac_item_for_dataset,
+    load_geo_data_frame,
     validate_dataset_crs,
 )
 
@@ -221,6 +223,92 @@ class TestSpatialUtils(unittest.TestCase):
         # When using a single datetime, start_datetime and end_datetime should not be set
         self.assertNotIn("start_datetime", item.properties)
         self.assertNotIn("end_datetime", item.properties)
+
+    def test_load_geo_data_frame(self):
+        """Test loading a GeoDataFrame from local asset paths."""
+        from unittest.mock import patch
+
+        # Create mock GeoDataFrame
+        points = [shapely.Point(0.5, 0.5), shapely.Point(1.5, 1.5)]
+        mock_gdf = gpd.GeoDataFrame(geometry=points)
+        mock_gdf.crs = "EPSG:4326"
+
+        # Create mock GeoDataReference
+        mock_geo_reference = Mock(spec=GeoDataReference)
+        mock_geo_reference.reference_string = "stac:test-dataset"
+
+        # Create mock local asset paths
+        local_asset_paths = {"asset1": "/tmp/asset1.parquet"}
+
+        # Create mock item
+        mock_item = Mock(spec=Item)
+
+        # Test with existing item
+        with patch("aws.osml.geoagents.spatial.spatial_utils.create_stac_item_for_dataset") as mock_create_stac_item:
+            # Create a new mock workspace for this test case
+            mock_workspace1 = Mock(spec=Workspace)
+            mock_workspace1.read_geo_data_frame.return_value = mock_gdf
+
+            gdf, item, selected_asset_key = load_geo_data_frame(
+                local_asset_paths, mock_workspace1, mock_geo_reference, mock_item
+            )
+
+            # Verify the results
+            pd.testing.assert_frame_equal(gdf, mock_gdf)
+            self.assertEqual(item, mock_item)
+            self.assertEqual(selected_asset_key, "asset1")
+
+            # Verify the mocks were called
+            mock_workspace1.read_geo_data_frame.assert_called_once_with("/tmp/asset1.parquet")
+            mock_create_stac_item.assert_not_called()
+
+        # Test with no item (should create a new one)
+        mock_create_item = Mock(spec=Item)
+        with patch("aws.osml.geoagents.spatial.spatial_utils.create_stac_item_for_dataset") as mock_create_stac_item:
+            mock_create_stac_item.return_value = mock_create_item
+
+            # Create a new mock workspace for this test case
+            mock_workspace2 = Mock(spec=Workspace)
+            mock_workspace2.read_geo_data_frame.return_value = mock_gdf
+
+            gdf, item, selected_asset_key = load_geo_data_frame(local_asset_paths, mock_workspace2, mock_geo_reference, None)
+
+            # Verify the results
+            pd.testing.assert_frame_equal(gdf, mock_gdf)
+            self.assertEqual(item, mock_create_item)
+            self.assertEqual(selected_asset_key, "asset1")
+
+            # Verify the mocks were called
+            mock_workspace2.read_geo_data_frame.assert_called_once_with("/tmp/asset1.parquet")
+            mock_create_stac_item.assert_called_once()
+
+        # Test with geo_column specified
+        with patch("aws.osml.geoagents.spatial.spatial_utils.create_stac_item_for_dataset") as mock_create_stac_item:
+            mock_create_stac_item.return_value = mock_create_item
+
+            # Create a new mock workspace for this test case
+            mock_workspace3 = Mock(spec=Workspace)
+
+            # Create a GeoDataFrame with a custom_geometry column
+            custom_gdf = gpd.GeoDataFrame(geometry=points)
+            custom_gdf["custom_geometry"] = custom_gdf["geometry"]
+            custom_gdf.crs = "EPSG:4326"
+            mock_workspace3.read_geo_data_frame.return_value = custom_gdf
+
+            gdf, item, selected_asset_key = load_geo_data_frame(
+                local_asset_paths, mock_workspace3, mock_geo_reference, mock_item, "custom_geometry"
+            )
+
+            # Verify the results
+            pd.testing.assert_frame_equal(gdf, custom_gdf)
+            self.assertEqual(item, mock_item)
+            self.assertEqual(selected_asset_key, "asset1")
+
+            # Verify the mocks were called
+            mock_workspace3.read_geo_data_frame.assert_called_once_with("/tmp/asset1.parquet")
+            # Verify that set_geometry was called with the custom geometry column
+            # This is a bit tricky to test since we're using a real GeoDataFrame
+            # We'd need to mock the GeoDataFrame itself to verify this
 
 
 if __name__ == "__main__":

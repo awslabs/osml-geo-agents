@@ -58,10 +58,10 @@ class TestAppendOperation(unittest.TestCase):
 
     @patch("aws.osml.geoagents.spatial.append_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.append_operation.create_derived_stac_item")
-    @patch("aws.osml.geoagents.spatial.append_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.append_operation.load_geo_data_frame")
     @patch("aws.osml.geoagents.spatial.append_operation.STACReference")
     def test_append_operation_successful(
-        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+        self, mock_stac_reference, mock_load_geo_data_frame, mock_create_derived_stac_item, mock_local_assets
     ):
         """Test successful appending of multiple geodataframes."""
         # Create real geodataframes
@@ -87,15 +87,16 @@ class TestAppendOperation(unittest.TestCase):
             (mock_item3, mock_local_asset_paths3),
         ]
 
-        # Configure read_geo_data_frame to return different GeoDataFrames on each call
-        self.mock_workspace.read_geo_data_frame.side_effect = [gdf1, gdf2, gdf3]
+        # Configure load_geo_data_frame to return different values on each call
+        mock_load_geo_data_frame.side_effect = [
+            (gdf1, mock_item1, "data"),
+            (gdf2, mock_item2, "data"),
+            (gdf3, mock_item3, "data"),
+        ]
 
         # Set up mock for create_derived_stac_item
         mock_derived_item = Mock(spec=Item)
         mock_create_derived_stac_item.return_value = mock_derived_item
-
-        # Set up mock for create_stac_item_for_dataset
-        mock_create_stac_item_for_dataset.return_value = mock_item1
 
         # Set up mock for STACReference
         mock_stac_ref = Mock(spec=STACReference)
@@ -115,7 +116,19 @@ class TestAppendOperation(unittest.TestCase):
 
         # Verify the mocks were called
         self.assertEqual(mock_local_assets.call_count, 3)
-        self.assertEqual(self.mock_workspace.read_geo_data_frame.call_count, 3)
+        self.assertEqual(mock_load_geo_data_frame.call_count, 3)
+
+        # Verify load_geo_data_frame was called with correct parameters
+        mock_load_geo_data_frame.assert_any_call(
+            mock_local_asset_paths1, self.mock_workspace, self.dataset1_reference, mock_item1
+        )
+        mock_load_geo_data_frame.assert_any_call(
+            mock_local_asset_paths2, self.mock_workspace, self.dataset2_reference, mock_item2
+        )
+        mock_load_geo_data_frame.assert_any_call(
+            mock_local_asset_paths3, self.mock_workspace, self.dataset3_reference, mock_item3
+        )
+
         self.mock_workspace.write_geo_data_frame.assert_called_once()
         mock_create_derived_stac_item.assert_called_once()
         self.mock_workspace.create_item.assert_called_once()
@@ -129,10 +142,10 @@ class TestAppendOperation(unittest.TestCase):
 
     @patch("aws.osml.geoagents.spatial.append_operation.LocalAssets")
     @patch("aws.osml.geoagents.spatial.append_operation.create_derived_stac_item")
-    @patch("aws.osml.geoagents.spatial.append_operation.create_stac_item_for_dataset")
+    @patch("aws.osml.geoagents.spatial.append_operation.load_geo_data_frame")
     @patch("aws.osml.geoagents.spatial.append_operation.STACReference")
     def test_append_operation_single_dataset(
-        self, mock_stac_reference, mock_create_stac_item_for_dataset, mock_create_derived_stac_item, mock_local_assets
+        self, mock_stac_reference, mock_load_geo_data_frame, mock_create_derived_stac_item, mock_local_assets
     ):
         """Test appending a single dataset (should return the dataset unchanged)."""
         # Create real geodataframes
@@ -146,15 +159,12 @@ class TestAppendOperation(unittest.TestCase):
         # Configure the LocalAssets mock
         mock_local_assets.return_value.__enter__.return_value = (mock_item1, mock_local_asset_paths1)
 
-        # Configure read_geo_data_frame to return the GeoDataFrame
-        self.mock_workspace.read_geo_data_frame.return_value = gdf1
+        # Configure load_geo_data_frame to return the GeoDataFrame
+        mock_load_geo_data_frame.return_value = (gdf1, mock_item1, "data")
 
         # Set up mock for create_derived_stac_item
         mock_derived_item = Mock(spec=Item)
         mock_create_derived_stac_item.return_value = mock_derived_item
-
-        # Set up mock for create_stac_item_for_dataset
-        mock_create_stac_item_for_dataset.return_value = mock_item1
 
         # Set up mock for STACReference
         mock_stac_ref = Mock(spec=STACReference)
@@ -174,7 +184,9 @@ class TestAppendOperation(unittest.TestCase):
 
         # Verify the mocks were called
         mock_local_assets.assert_called_once()
-        self.mock_workspace.read_geo_data_frame.assert_called_once()
+        mock_load_geo_data_frame.assert_called_once_with(
+            mock_local_asset_paths1, self.mock_workspace, self.dataset1_reference, mock_item1
+        )
         self.mock_workspace.write_geo_data_frame.assert_called_once()
         mock_create_derived_stac_item.assert_called_once()
         self.mock_workspace.create_item.assert_called_once()
@@ -196,8 +208,8 @@ class TestAppendOperation(unittest.TestCase):
             )
 
     @patch("aws.osml.geoagents.spatial.append_operation.LocalAssets")
-    @patch("aws.osml.geoagents.spatial.append_operation.create_stac_item_for_dataset")
-    def test_append_operation_incompatible_crs(self, mock_create_stac_item_for_dataset, mock_local_assets):
+    @patch("aws.osml.geoagents.spatial.append_operation.load_geo_data_frame")
+    def test_append_operation_incompatible_crs(self, mock_load_geo_data_frame, mock_local_assets):
         """Test appending datasets with incompatible CRS."""
         # Create real geodataframes with different CRS
         gdf1, _, _ = self.create_test_geodataframes()
@@ -223,11 +235,11 @@ class TestAppendOperation(unittest.TestCase):
             (mock_item2, mock_local_asset_paths2),
         ]
 
-        # Configure read_geo_data_frame to return different GeoDataFrames on each call
-        self.mock_workspace.read_geo_data_frame.side_effect = [gdf1, gdf2]
-
-        # Set up mock for create_stac_item_for_dataset
-        mock_create_stac_item_for_dataset.side_effect = [mock_item1, mock_item2]
+        # Configure load_geo_data_frame to return different values on each call
+        mock_load_geo_data_frame.side_effect = [
+            (gdf1, mock_item1, "data"),
+            (gdf2, mock_item2, "data"),
+        ]
 
         # Call the operation function with incompatible CRS
         with self.assertRaises(ValueError):

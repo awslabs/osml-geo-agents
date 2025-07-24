@@ -11,7 +11,7 @@ from pyproj import CRS
 from sklearn.cluster import DBSCAN
 
 from ..common import GeoDataReference, LocalAssets, STACReference, Workspace
-from .spatial_utils import create_derived_stac_item, create_stac_item_for_dataset, validate_dataset_crs
+from .spatial_utils import create_derived_stac_item, load_geo_data_frame
 
 logger = logging.getLogger(__name__)
 
@@ -41,20 +41,8 @@ def cluster_operation(
     try:
         # Use context manager to handle local assets
         with LocalAssets(dataset_reference, workspace) as (item, local_asset_paths):
-            # Select the assets to process and load them into memory
-            selected_asset_key = next(iter(local_asset_paths))
-            local_dataset_path = local_asset_paths[selected_asset_key]
-            gdf = workspace.read_geo_data_frame(str(local_dataset_path))
-            validate_dataset_crs(gdf, dataset_reference)
-
-            # If item is None, create a new item from the GeoDataFrame
-            if item is None:
-                item = create_stac_item_for_dataset(
-                    gdf,
-                    str(local_dataset_path),
-                    title=f"Dataset from {dataset_reference}",
-                    description=f"Dataset loaded from {dataset_reference}",
-                )
+            # Load the dataset using the utility function
+            gdf, item, selected_asset_key = load_geo_data_frame(local_asset_paths, workspace, dataset_reference, item)
 
             # Project to Web Mercator (EPSG:3857) for meter-based calculations
             gdf = gdf.to_crs(crs=CRS.from_epsg(3857))

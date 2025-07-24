@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 import geopandas as gpd
 import pandas as pd
@@ -10,7 +10,7 @@ import shapely
 from pystac import Asset, Item
 from shapely.geometry.base import BaseGeometry
 
-from ..common import GeoDataReference, STACReference
+from ..common import GeoDataReference, STACReference, Workspace
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +120,51 @@ def create_length_limited_wkt(shape: BaseGeometry, max_length: int = 500, minimu
 
     # If we still can't get under the limit, raise an error
     raise ValueError(f"Unable to create WKT string under {max_length} characters")
+
+
+def load_geo_data_frame(
+    local_asset_paths: Dict[str, str],
+    workspace: Workspace,
+    geo_reference: GeoDataReference,
+    item: Optional[Item] = None,
+    geo_column: Optional[str] = None,
+) -> Tuple[gpd.GeoDataFrame, Item, str]:
+    """
+    Load a GeoDataFrame from local asset paths, handling common operations like:
+    - Selecting the first asset
+    - Reading the GeoDataFrame
+    - Setting the geometry column if specified
+    - Validating the CRS
+    - Creating a STAC item if needed
+
+    This function is designed to be used within a LocalAssets context manager.
+
+    :param local_asset_paths: Dictionary of asset keys to local paths from LocalAssets
+    :param workspace: Workspace for storing assets
+    :param geo_reference: GeoDataReference for the dataset (used for validation and item creation)
+    :param item: Optional existing STAC Item
+    :param geo_column: Optional name of the geometry column
+    :return: Tuple of (GeoDataFrame, STAC Item, selected_asset_key)
+    :raises ValueError: If loading fails
+    """
+    # Select the assets to process and load them into memory
+    selected_asset_key = next(iter(local_asset_paths))
+    local_dataset_path = local_asset_paths[selected_asset_key]
+    gdf = workspace.read_geo_data_frame(str(local_dataset_path))
+    if geo_column:
+        gdf.set_geometry(geo_column, inplace=True)
+    validate_dataset_crs(gdf, geo_reference)
+
+    # If item is None, create a new item from the GeoDataFrame
+    if item is None:
+        item = create_stac_item_for_dataset(
+            gdf,
+            str(local_dataset_path),
+            title=f"Dataset from {geo_reference}",
+            description=f"Dataset loaded from {geo_reference}",
+        )
+
+    return gdf, item, selected_asset_key
 
 
 def create_stac_item_for_dataset(
