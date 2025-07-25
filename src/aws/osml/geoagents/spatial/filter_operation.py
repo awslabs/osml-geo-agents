@@ -22,69 +22,94 @@ class FilterTypes(Enum):
 
 
 def filter_operation(
-    dataset_reference: GeoDataReference,
-    filter_reference: GeoDataReference,
-    filter_type: Optional[FilterTypes],
-    workspace: Workspace,
     function_name: str,
+    workspace: Workspace,
+    dataset_reference: GeoDataReference,
+    filter_reference: Optional[GeoDataReference] = None,
+    filter_type: Optional[FilterTypes] = None,
     dataset_geo_column: Optional[str] = None,
     filter_geo_column: Optional[str] = None,
     output_format: str = "parquet",
+    query_expression: Optional[str] = None,
 ) -> str:
     """
-    Filter a dataset to only contain features based on their spatial relationship with another dataset.
+    Filter a dataset to only contain features based on their spatial relationship with another dataset
+    and/or a query expression for non-spatial columns.
 
     :param dataset_reference: GeoDataReference for the dataset to filter
-    :param filter_reference: GeoDataReference for the dataset to use as a filter
+    :param filter_reference: Optional GeoDataReference for the dataset to use as a spatial filter
     :param filter_type: Type of filter to apply (intersects or difference)
     :param workspace: Workspace for storing assets
     :param function_name: Function name for creating reference
     :param dataset_geo_column: Optional name of the geometry column in the dataset
     :param filter_geo_column: Optional name of the geometry column in the filter dataset
     :param output_format: Format for the output file (geojson or parquet)
+    :param query_expression: Optional pandas query expression to filter non-spatial columns
+                            (e.g. 'population > 1000 and city == "New York"')
     :return: A formatted string with the filtering result
     :raises ValueError: If filtering fails
     """
     filtered_dataset_path = None
 
     try:
-        # Default to INTERSECTS if filter_type is not provided
-        filter_type = filter_type if filter_type else FilterTypes.INTERSECTS
-
-        # Use workspace to access the geospatial datasets
-        with LocalAssets(dataset_reference, workspace) as (item, local_asset_paths), LocalAssets(
-            filter_reference, workspace
-        ) as (
-            filter_item,
-            filter_local_asset_paths,
-        ):
+        # Use workspace to access the dataset
+        with LocalAssets(dataset_reference, workspace) as (item, local_asset_paths):
             # Load the dataset using the utility function
             gdf, item, selected_asset_key = load_geo_data_frame(
                 local_asset_paths, workspace, dataset_reference, item, dataset_geo_column
             )
 
-            # Load the filter dataset using the utility function
-            filter_gdf, filter_item, filter_asset_key = load_geo_data_frame(
-                filter_local_asset_paths, workspace, filter_reference, filter_item, filter_geo_column
-            )
+            # Store original count for summary
+            original_count = len(gdf)
 
-            # Run the filter operation
-            if filter_type == FilterTypes.INTERSECTS:
-                # Perform spatial join to find features that intersect
-                joined = gpd.sjoin(gdf, filter_gdf, how="inner")
-                filtered_gdf = gpd.GeoDataFrame(joined.drop(columns=["index_right"]))
-            else:  # FilterTypes.DIFFERENCE
-                # Perform spatial join to find features that don't intersect
-                joined = gpd.sjoin(gdf, filter_gdf, how="left")
-                filtered_gdf = gpd.GeoDataFrame(joined[joined["index_right"].isna()].drop(columns=["index_right"]))
+            # Apply query expression if provided
+            if query_expression:
+                try:
+                    gdf = gdf.query(query_expression)
+                    logger.info(
+                        f"Applied query expression '{query_expression}', filtered from {original_count} to {len(gdf)} features"
+                    )
+                except Exception as e:
+                    logger.error(f"Error applying query expression: {str(e)}")
+                    raise ValueError(f"Error applying query expression: {str(e)}")
+
+            # Apply spatial filter if provided
+            if filter_reference:
+                # Default to INTERSECTS if filter_type is not provided
+                filter_type = filter_type if filter_type else FilterTypes.INTERSECTS
+
+                # Access the filter dataset
+                with LocalAssets(filter_reference, workspace) as (filter_item, filter_local_asset_paths):
+                    # Load the filter dataset using the utility function
+                    filter_gdf, filter_item, filter_asset_key = load_geo_data_frame(
+                        filter_local_asset_paths, workspace, filter_reference, filter_item, filter_geo_column
+                    )
+
+                    # Run the spatial filter operation
+                    if filter_type == FilterTypes.INTERSECTS:
+                        # Perform spatial join to find features that intersect
+                        joined = gpd.sjoin(gdf, filter_gdf, how="inner")
+                        filtered_gdf = gpd.GeoDataFrame(joined.drop(columns=["index_right"]))
+                    else:  # FilterTypes.DIFFERENCE
+                        # Perform spatial join to find features that don't intersect
+                        joined = gpd.sjoin(gdf, filter_gdf, how="left")
+                        filtered_gdf = gpd.GeoDataFrame(joined[joined["index_right"].isna()].drop(columns=["index_right"]))
+            else:
+                # If no spatial filter, just use the dataset (possibly already filtered by query)
+                filtered_gdf = gdf
 
             # Generate summary text describing the result
             filtered_dataset_title = f"Filtered {item.properties['title']}"
             filtered_dataset_summary = (
-                f"This dataset contains {len(filtered_gdf)} features selected from "
-                f"{dataset_reference} using a {filter_type.value} filter against "
-                f"{filter_reference}. "
+                f"This dataset contains {len(filtered_gdf)} features selected from {dataset_reference}. "
             )
+
+            # Add details about the filters applied
+            if filter_reference:
+                filter_type_value = filter_type.value if filter_type else FilterTypes.INTERSECTS.value
+                filtered_dataset_summary += f"A {filter_type_value} spatial filter against {filter_reference} was applied. "
+            if query_expression:
+                filtered_dataset_summary += f"A query expression '{query_expression}' was also applied. "
 
             # Write the derived dataset to the local workspace cache
             stac_ref = STACReference.new_from_timestamp(asset_tag=selected_asset_key, prefix=function_name)

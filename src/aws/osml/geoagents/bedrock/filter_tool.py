@@ -48,34 +48,42 @@ class FilterTool(ToolBase):
         try:
             # Parse and validate the required parameters
             dataset_georef = CommonParameters.parse_dataset_georef(event, "dataset", is_required=True)
-            filter_georef = CommonParameters.parse_dataset_georef(event, "filter", is_required=True)
+            filter_georef = CommonParameters.parse_dataset_georef(event, "filter", is_required=False)
             dataset_geo_column = CommonParameters.parse_string_parameter(event, "dataset_geo_column_name", is_required=False)
             filter_geo_column = CommonParameters.parse_string_parameter(event, "filter_geo_column_name", is_required=False)
             filter_type_str = CommonParameters.parse_string_parameter(event, "filter_type", is_required=False)
+            query_expression = CommonParameters.parse_string_parameter(event, "query_expression", is_required=False)
 
-            # Determine the filter type
-            filter_type = FilterTypes.INTERSECTS
-            if filter_type_str:
-                try:
-                    filter_type = FilterTypes(filter_type_str.lower())
-                except ValueError:
-                    logger.warning(f"Invalid filter type: {filter_type_str}. Using default: {filter_type.value}")
+            # Determine the filter type if a spatial filter is provided
+            filter_type = None
+            if filter_georef:
+                filter_type = FilterTypes.INTERSECTS
+                if filter_type_str:
+                    try:
+                        filter_type = FilterTypes(filter_type_str.lower())
+                    except ValueError:
+                        logger.warning(
+                            f"Invalid filter type: {filter_type_str}. Using default: FilterTypes.INTERSECTS.value"
+                        )
 
-            # Ensure the required parameters are not None
+            # Ensure the dataset reference is provided
             if dataset_georef is None:
                 raise ToolExecutionError("Dataset reference is required")
-            if filter_georef is None:
-                raise ToolExecutionError("Filter reference is required")
 
-            # Call the operation function
+            # Ensure at least one filter method is provided
+            if filter_georef is None and query_expression is None:
+                raise ToolExecutionError("Either a filter reference or a query expression must be provided")
+
+            # Call the operation function with the new parameter order
             text_result = filter_operation(
+                function_name=self.function_name,
+                workspace=workspace,
                 dataset_reference=dataset_georef,
                 filter_reference=filter_georef,
                 filter_type=filter_type,
                 dataset_geo_column=dataset_geo_column,
                 filter_geo_column=filter_geo_column,
-                workspace=workspace,
-                function_name=self.function_name,
+                query_expression=query_expression,
             )
 
             return self.create_action_response(event, text_result, is_error=False)
