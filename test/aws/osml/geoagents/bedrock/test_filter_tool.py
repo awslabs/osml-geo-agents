@@ -48,13 +48,14 @@ class TestFilterTool(unittest.TestCase):
 
         # Verify filter_operation was called with the correct parameters
         mock_filter_operation.assert_called_once_with(
+            function_name=self.tool.function_name,
+            workspace=self.mock_workspace,
             dataset_reference=GeoDataReference("stac:test-dataset"),
             filter_reference=GeoDataReference("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"),
             filter_type=ANY,  # Using ANY since we can't easily compare enum values
             dataset_geo_column=None,
             filter_geo_column=None,
-            workspace=self.mock_workspace,
-            function_name=self.tool.function_name,
+            query_expression=None,
         )
 
         # Verify the response contains the mocked result
@@ -101,7 +102,7 @@ class TestFilterTool(unittest.TestCase):
         with self.assertRaises(ToolExecutionError) as context:
             self.tool.handler(event, self.context, self.mock_workspace)
 
-        self.assertIn("Missing required parameter: 'filter'", str(context.exception))
+        self.assertIn("Either a filter reference or a query expression must be provided", str(context.exception))
 
 
 if __name__ == "__main__":

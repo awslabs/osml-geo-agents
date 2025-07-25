@@ -164,8 +164,9 @@ def filter_dataset(
     dataset: str = Field(
         description="Reference for the dataset (STAC reference (e.g. stac:ID#asset), WKT string, or local path)"
     ),
-    filter: str = Field(
-        description="Reference for the geometry filter (STAC reference (e.g. stac:ID#asset), WKT string, or local path)"
+    filter: Optional[str] = Field(
+        description="Reference for the geometry filter (STAC reference (e.g. stac:ID#asset), WKT string, or local path)",
+        default=None,
     ),
     filter_type: str = Field(
         description='Type of geometry filter to apply ("intersects" or "difference")', default="intersects"
@@ -177,14 +178,28 @@ def filter_dataset(
         description="Optional name of the geometry column in the filter dataset", default=None
     ),
     output_format: str = Field(description="Format for the output file (geojson or parquet)", default="parquet"),
+    query_expression: Optional[str] = Field(
+        description="Optional pandas query expression to filter non-spatial columns (e.g. 'population > 1000 and city == \"New York\"')",
+        default=None,
+    ),
 ) -> str:
     """
     Create a new dataset that contains features selected from the referenced dataset. The features included must
     match all of the criteria provided. The new dataset will be stored in the user's workspace and the reference
     of that dataset will be returned by this tool.
 
-    This operation can select features that either intersect or are different from the filter dataset provided.
-    The non-geometry columns of the filter dataset are not used.
+    This operation can filter features in two ways:
+    1. Spatial filtering: Features that either intersect or are different from the filter dataset provided.
+    2. Query filtering: Features that match a pandas query expression on non-spatial columns.
+
+    You can use either spatial filtering, query filtering, or both together.
+
+    Query Expression Examples:
+    - Basic numeric comparison: 'population > 1000'
+    - Text matching: 'city == "New York"'
+    - Combined conditions: 'population > 1000 and area < 500'
+    - Using operators: 'temperature > 32 and status == "active"'
+    - Accessing columns with spaces: '`Area (km²)` > 100'
     """
     logger.info(f"Filtering dataset {dataset}")
 
@@ -192,22 +207,27 @@ def filter_dataset(
         # Parse the dataset reference
         dataset_ref = GeoDataReference(dataset)
 
-        # Parse the filter reference
-        filter_ref = GeoDataReference(filter)
+        # Parse the filter reference if provided
+        filter_ref = None
+        if filter:
+            filter_ref = GeoDataReference(filter)
 
-        # Convert filter_type string to enum
-        filter_type_enum = FilterTypes.INTERSECTS if filter_type.lower() == "intersects" else FilterTypes.DIFFERENCE
+        # Convert filter_type string to enum if spatial filter is used
+        filter_type_enum = None
+        if filter_ref:
+            filter_type_enum = FilterTypes.INTERSECTS if filter_type.lower() == "intersects" else FilterTypes.DIFFERENCE
 
         # Call the filter operation
         result = filter_operation(
+            "filter_dataset",
+            workspace,
             dataset_ref,
             filter_ref,
             filter_type_enum,
-            workspace,
-            "filter_dataset",
             dataset_geo_column,
             filter_geo_column,
             output_format,
+            query_expression,
         )
 
         return result
