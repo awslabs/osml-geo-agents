@@ -40,7 +40,19 @@ ENV PATH=/opt/conda/bin:$PATH
 COPY conda/agent-environment.yml ${LAMBDA_TASK_ROOT}/environment.yml
 
 # Install python with conda and remove additional unnecessary files
-RUN conda env create -n ${CONDA_ENV_NAME} --file environment.yml && \
+#
+# Anaconda recently added requirements to accept terms of service for some channels.
+# We are using conda-forge instead of the anaconda channels which should not have
+# this problem but the config must be updated to enforce that and remove defaults.
+# If that approach stops working then adding the following should automatically
+# accept the new terms of service (even if they are not used):
+#    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main || true && \
+#    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r || true && \
+RUN conda config --system --prepend channels conda-forge && \
+    conda config --system --set auto_update_conda false && \
+    conda config --system --set show_channel_urls true && \
+    conda config --system --remove channels defaults && \
+    conda env create -n ${CONDA_ENV_NAME} --file environment.yml && \
     conda clean -afy && \
     rm -rf /opt/conda/pkgs
 
