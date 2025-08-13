@@ -5,11 +5,12 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import geopandas as gpd
+import pandas as pd
 import shapely
 from pystac import Item
 
 from aws.osml.geoagents.common import GeoDataReference, STACReference, Workspace
-from aws.osml.geoagents.spatial.filter_operation import FilterTypes, filter_operation
+from aws.osml.geoagents.spatial.filter_operation import FilterTypes, _validate_query_expression, filter_operation
 
 
 class TestFilterOperation(unittest.TestCase):
@@ -365,6 +366,103 @@ class TestFilterOperation(unittest.TestCase):
         self.mock_workspace.write_geo_data_frame.assert_called_once()
         mock_create_derived_stac_item.assert_called_once()
         self.mock_workspace.create_item.assert_called_once()
+
+
+class TestQueryExpressionValidation(unittest.TestCase):
+    """Test the query expression validation functionality."""
+
+    def setUp(self):
+        """Set up test fixtures before each test method."""
+        # Create a sample dataframe for testing
+        data = {
+            "geometry": [shapely.Point(0, 0), shapely.Point(1, 1), shapely.Point(2, 2)],
+            "population": [100, 5000, 250],
+            "city": ["Small Town", "Big City", "Village"],
+            "is_capital": [False, True, False],
+        }
+        self.test_df = pd.DataFrame(data)
+
+    def test_valid_expressions(self):
+        """Test that valid expressions are accepted."""
+        # Test basic comparison operators
+        self.assertEqual(_validate_query_expression("population > 1000", self.test_df), "population > 1000")
+        self.assertEqual(_validate_query_expression("population <= 5000", self.test_df), "population <= 5000")
+        self.assertEqual(_validate_query_expression("is_capital == True", self.test_df), "is_capital == True")
+
+        # Test boolean operators
+        self.assertEqual(
+            _validate_query_expression("population > 1000 and is_capital == True", self.test_df),
+            "population > 1000 and is_capital == True",
+        )
+        self.assertEqual(
+            _validate_query_expression("population < 200 or population > 1000", self.test_df),
+            "population < 200 or population > 1000",
+        )
+
+        # Test parentheses
+        self.assertEqual(
+            _validate_query_expression("(population > 1000) and (is_capital == True)", self.test_df),
+            "(population > 1000) and (is_capital == True)",
+        )
+
+    def test_string_operations(self):
+        """Test that string operations are properly validated."""
+        # Test string contains
+        self.assertEqual(_validate_query_expression("city.str.contains('City')", self.test_df), "city.str.contains('City')")
+
+        # Test string startswith
+        self.assertEqual(
+            _validate_query_expression("city.str.startswith('Big')", self.test_df), "city.str.startswith('Big')"
+        )
+
+        # Test string endswith
+        self.assertEqual(_validate_query_expression("city.str.endswith('Town')", self.test_df), "city.str.endswith('Town')")
+
+        # Test string length
+        self.assertEqual(_validate_query_expression("city.str.len() > 5", self.test_df), "city.str.len() > 5")
+
+        # Test combined string operations
+        self.assertEqual(
+            _validate_query_expression("city.str.contains('City') and population > 1000", self.test_df),
+            "city.str.contains('City') and population > 1000",
+        )
+
+    def test_non_existent_columns(self):
+        """Test that expressions with non-existent columns are rejected."""
+        with self.assertRaises(ValueError) as context:
+            _validate_query_expression("non_existent_column > 100", self.test_df)
+        self.assertIn("non-existent columns", str(context.exception))
+
+        with self.assertRaises(ValueError) as context:
+            _validate_query_expression("population > 1000 and unknown_column == True", self.test_df)
+        self.assertIn("non-existent columns", str(context.exception))
+
+    def test_disallowed_operations(self):
+        """Test that expressions with disallowed operations are rejected."""
+        # Test disallowed function calls
+        with self.assertRaises(ValueError) as context:
+            _validate_query_expression("eval('1+1')", self.test_df)
+        self.assertIn("disallowed operations", str(context.exception))
+
+        # Test disallowed attribute access
+        with self.assertRaises(ValueError) as context:
+            _validate_query_expression("city.__class__", self.test_df)
+        self.assertIn("disallowed operations", str(context.exception))
+
+        # Test disallowed string methods
+        with self.assertRaises(ValueError) as context:
+            _validate_query_expression("city.str.replace('City', 'Town')", self.test_df)
+        self.assertIn("disallowed operations", str(context.exception))
+
+        # Test non-string arguments to string methods
+        with self.assertRaises(ValueError) as context:
+            _validate_query_expression("city.str.contains(population)", self.test_df)
+        self.assertIn("disallowed operations", str(context.exception))
+
+        # Test regex validation in match method
+        with self.assertRaises(ValueError) as context:
+            _validate_query_expression("city.str.match('[')", self.test_df)  # Invalid regex
+        self.assertIn("disallowed operations", str(context.exception))
 
 
 if __name__ == "__main__":
