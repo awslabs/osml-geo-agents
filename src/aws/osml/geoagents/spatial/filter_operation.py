@@ -1,12 +1,15 @@
 #  Copyright 2025 Amazon.com, Inc. or its affiliates.
 
+import ast
 import logging
+import re
 import tempfile
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional, Set, Tuple
 
 import geopandas as gpd
+import pandas as pd
 
 from ..common import GeoDataReference, LocalAssets, STACReference, Workspace
 from .spatial_utils import create_derived_stac_item, load_geo_data_frame
@@ -19,6 +22,230 @@ class FilterTypes(Enum):
 
     INTERSECTS = "intersects"
     DIFFERENCE = "difference"
+
+
+def _validate_query_expression(query_expression: str, dataframe: pd.DataFrame) -> str:
+    """
+    Validate a query expression to ensure it only references existing columns and uses allowed operations.
+
+    :param query_expression: The query expression to validate
+    :param dataframe: The dataframe to validate against
+    :return: The validated query expression
+    :raises ValueError: If the query expression is invalid
+    """
+    if not query_expression or not query_expression.strip():
+        raise ValueError("Query expression cannot be empty")
+
+    # Get the list of column names in the dataframe
+    available_columns = set(dataframe.columns)
+
+    # Parse the expression into an AST
+    try:
+        parsed_expr = ast.parse(query_expression, mode="eval")
+    except SyntaxError as e:
+        raise ValueError(f"Invalid query syntax: {str(e)}")
+
+    # Extract column references and validate operations
+    referenced_columns, invalid_operations = _extract_references_and_validate(parsed_expr.body, available_columns)
+
+    # Check if all referenced columns exist in the dataframe
+    missing_columns = referenced_columns - available_columns
+    if missing_columns:
+        raise ValueError(f"Query references non-existent columns: {', '.join(missing_columns)}")
+
+    # Check if there are any invalid operations
+    if invalid_operations:
+        raise ValueError(f"Query contains disallowed operations: {', '.join(invalid_operations)}")
+
+    return query_expression
+
+
+def _extract_references_and_validate(node: ast.AST, available_columns: Set[str]) -> Tuple[Set[str], List[str]]:
+    """
+    Extract column references from an AST node and validate operations.
+
+    :param node: The AST node to process
+    :param available_columns: Set of available column names
+    :return: Tuple of (referenced_columns, invalid_operations)
+    """
+    referenced_columns = set()
+    invalid_operations = []
+
+    # Allowed binary operators
+    allowed_bin_ops = (
+        ast.Add,
+        ast.Sub,
+        ast.Mult,
+        ast.Div,
+        ast.FloorDiv,
+        ast.Mod,
+        ast.Pow,
+        ast.LShift,
+        ast.RShift,
+        ast.BitOr,
+        ast.BitXor,
+        ast.BitAnd,
+        ast.MatMult,
+    )
+
+    # Allowed comparison operators
+    allowed_cmp_ops = (ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.Is, ast.IsNot, ast.In, ast.NotIn)
+
+    # Allowed boolean operators
+    allowed_bool_ops = (ast.And, ast.Or)
+
+    # Allowed unary operators
+    allowed_unary_ops = (ast.UAdd, ast.USub, ast.Not, ast.Invert)
+
+    # Process different node types
+    if isinstance(node, ast.Name):
+        # Simple column reference
+        referenced_columns.add(node.id)
+
+    elif isinstance(node, ast.Attribute):
+        # Handle attribute access (e.g., column.str.contains())
+        if isinstance(node.value, ast.Attribute) and isinstance(node.value.value, ast.Name):
+            if node.value.attr == "str":
+                # String method access (e.g., column.str.contains)
+                column_name = node.value.value.id
+                referenced_columns.add(column_name)
+
+                # Validate string methods
+                allowed_str_methods = {"contains", "startswith", "endswith", "match", "len"}
+                if node.attr not in allowed_str_methods:
+                    invalid_operations.append(f"String method '{node.attr}' is not allowed")
+            else:
+                # Other attribute access
+                invalid_operations.append(f"Attribute access '{node.value.attr}.{node.attr}' is not allowed")
+        elif isinstance(node.value, ast.Name):
+            # Simple attribute access (e.g., column.attribute)
+            referenced_columns.add(node.value.id)
+            if node.attr not in {"str"}:
+                invalid_operations.append(f"Attribute '{node.attr}' is not allowed")
+
+    elif isinstance(node, ast.Call):
+        # Function call
+        if isinstance(node.func, ast.Attribute):
+            # Method call (e.g., column.str.contains('text'))
+            if isinstance(node.func.value, ast.Attribute) and isinstance(node.func.value.value, ast.Name):
+                if node.func.value.attr == "str":
+                    # String method call
+                    column_name = node.func.value.value.id
+                    referenced_columns.add(column_name)
+
+                    # First check if the string method is allowed
+                    allowed_str_methods = {"contains", "startswith", "endswith", "match", "len"}
+                    if node.func.attr not in allowed_str_methods:
+                        invalid_operations.append(f"String method '{node.func.attr}' is not allowed")
+
+                    # Validate string method arguments for allowed methods
+                    elif node.func.attr in {"contains", "startswith", "endswith", "match"}:
+                        # These methods should have a string literal as first argument
+                        if (
+                            not node.args
+                            or not isinstance(node.args[0], ast.Constant)
+                            or not isinstance(node.args[0].value, str)
+                        ):
+                            invalid_operations.append(
+                                f"String method '{node.func.attr}' must have a string literal as argument"
+                            )
+
+                        # For match method, validate regex pattern
+                        if node.func.attr == "match" and len(node.args) > 0 and isinstance(node.args[0], ast.Constant):
+                            pattern = node.args[0].value
+                            if isinstance(pattern, str):
+                                try:
+                                    # Check if regex is valid and not too complex
+                                    if len(pattern) > 100:  # Limit pattern length
+                                        invalid_operations.append("Regex pattern is too complex")
+                                    re.compile(pattern)
+                                except re.error:
+                                    invalid_operations.append("Invalid regex pattern")
+                            else:
+                                invalid_operations.append("Regex pattern must be a string")
+
+                    # Process keyword arguments
+                    for keyword in node.keywords:
+                        if not isinstance(keyword.value, (ast.Constant, ast.NameConstant)):
+                            invalid_operations.append(f"Keyword argument '{keyword.arg}' must be a literal value")
+                else:
+                    invalid_operations.append(f"Method call '{node.func.value.attr}.{node.func.attr}' is not allowed")
+            else:
+                invalid_operations.append(f"Function call '{ast.unparse(node.func)}' is not allowed")
+        else:
+            invalid_operations.append(f"Function call '{ast.unparse(node.func)}' is not allowed")
+
+        # Recursively process arguments
+        for arg in node.args:
+            sub_refs, sub_invalids = _extract_references_and_validate(arg, available_columns)
+            referenced_columns.update(sub_refs)
+            invalid_operations.extend(sub_invalids)
+
+        for keyword in node.keywords:
+            sub_refs, sub_invalids = _extract_references_and_validate(keyword.value, available_columns)
+            referenced_columns.update(sub_refs)
+            invalid_operations.extend(sub_invalids)
+
+    elif isinstance(node, ast.BinOp):
+        # Binary operation
+        if not isinstance(node.op, allowed_bin_ops):
+            invalid_operations.append(f"Binary operator '{type(node.op).__name__}' is not allowed")
+
+        left_refs, left_invalids = _extract_references_and_validate(node.left, available_columns)
+        right_refs, right_invalids = _extract_references_and_validate(node.right, available_columns)
+
+        referenced_columns.update(left_refs)
+        referenced_columns.update(right_refs)
+        invalid_operations.extend(left_invalids)
+        invalid_operations.extend(right_invalids)
+
+    elif isinstance(node, ast.Compare):
+        # Comparison operation
+        for op in node.ops:
+            if not isinstance(op, allowed_cmp_ops):
+                invalid_operations.append(f"Comparison operator '{type(op).__name__}' is not allowed")
+
+        left_refs, left_invalids = _extract_references_and_validate(node.left, available_columns)
+        referenced_columns.update(left_refs)
+        invalid_operations.extend(left_invalids)
+
+        for comparator in node.comparators:
+            comp_refs, comp_invalids = _extract_references_and_validate(comparator, available_columns)
+            referenced_columns.update(comp_refs)
+            invalid_operations.extend(comp_invalids)
+
+    elif isinstance(node, ast.BoolOp):
+        # Boolean operation
+        if not isinstance(node.op, allowed_bool_ops):
+            invalid_operations.append(f"Boolean operator '{type(node.op).__name__}' is not allowed")
+
+        for value in node.values:
+            val_refs, val_invalids = _extract_references_and_validate(value, available_columns)
+            referenced_columns.update(val_refs)
+            invalid_operations.extend(val_invalids)
+
+    elif isinstance(node, ast.UnaryOp):
+        # Unary operation
+        if not isinstance(node.op, allowed_unary_ops):
+            invalid_operations.append(f"Unary operator '{type(node.op).__name__}' is not allowed")
+
+        operand_refs, operand_invalids = _extract_references_and_validate(node.operand, available_columns)
+        referenced_columns.update(operand_refs)
+        invalid_operations.extend(operand_invalids)
+
+    elif isinstance(node, ast.Constant):
+        # Literal values are allowed
+        pass
+    elif isinstance(node, (ast.Num, ast.Str, ast.NameConstant)):
+        # These are deprecated in Python 3.14 but still need to be handled for backward compatibility
+        # Literal values are allowed
+        pass
+
+    else:
+        # Any other node type is not allowed
+        invalid_operations.append(f"Operation '{type(node).__name__}' is not allowed")
+
+    return referenced_columns, invalid_operations
 
 
 def filter_operation(
@@ -65,10 +292,15 @@ def filter_operation(
             # Apply query expression if provided
             if query_expression:
                 try:
-                    gdf = gdf.query(query_expression)
+                    # Validate the query expression before applying it
+                    validated_query = _validate_query_expression(query_expression, gdf)
+                    gdf = gdf.query(validated_query)
                     logger.info(
                         f"Applied query expression '{query_expression}', filtered from {original_count} to {len(gdf)} features"
                     )
+                except ValueError as e:
+                    logger.error(f"Invalid query expression: {str(e)}")
+                    raise ValueError(f"Invalid query expression: {str(e)}")
                 except Exception as e:
                     logger.error(f"Error applying query expression: {str(e)}")
                     raise ValueError(f"Error applying query expression: {str(e)}")
