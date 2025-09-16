@@ -1,4 +1,4 @@
-# Copyright 2024-2025 Amazon.com, Inc. or its affiliates.
+# Copyright 2025 Amazon.com, Inc. or its affiliates.
 
 name: osml_geo_agents
 channels:
@@ -20,7 +20,9 @@ dependencies:
   - conda-forge::pystac-client=0.8.6
   - conda-forge::pip=24.0
   - conda-forge::awslambdaric=2.2.0
-  - conda-forge::mcp=1.9.3
+  - conda-forge::mcp=1.13.1
+  - conda-forge::pydantic=2.11.6
+  - conda-forge::starlette=0.47.2
   - pip:
       - osml-imagery-toolkit>=1.4.2
       - python-json-logger==2.0.7

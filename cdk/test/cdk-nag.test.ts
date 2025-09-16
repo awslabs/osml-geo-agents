@@ -96,8 +96,14 @@ describe("cdk-nag Compliance Checks", () => {
 
     stack = new OSMLGeoAgentStack(app, "OSMLGeoAgentsStack", {
       env: environment,
+      projectName: "osml",
+      isProd: false,
       targetVpcId: "vpc-12345678",
-      workspaceBucketName: "fake-test-bucket"
+      workspaceBucketName: "fake-test-bucket",
+      auth: {
+        authority: "https://www.auth.com",
+        audience: "mock"
+      }
     });
 
     // Add the cdk-nag AwsSolutions Pack with extra verbose logging enabled.

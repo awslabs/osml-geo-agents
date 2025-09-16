@@ -1,0 +1,22 @@
+# Copyright 2025 Amazon.com, Inc. or its affiliates.
+
+services:
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.mcp
+      target: mcp-local
+    container_name: "osml-geo-agent-mcp"
+    user: root
+    ports:
+      - '8000:8000'
+    environment:
+      LOG_LEVEL: "INFO"
+      WORKSPACE_LOCAL_CACHE: "/tmp/osml-geo-agents/cache"
+    volumes:
+      - "/tmp/osml-geo-agents-local:/tmp/osml-geo-agents/cache:rw"
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"

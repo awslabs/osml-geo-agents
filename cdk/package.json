@@ -2,7 +2,7 @@
   "name": "cdk",
   "version": "0.1.0",
   "bin": {
-    "cdk": "bin/app.js"
+    "cdk": "dist/bin/app.js"
   },
   "scripts": {
     "build": "tsc",

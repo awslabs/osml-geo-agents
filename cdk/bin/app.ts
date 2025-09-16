@@ -29,20 +29,25 @@ const app = new App();
  * - Project name
  * - AWS account ID and region
  * - VPC and S3 workspace configuration
+ * - Required authentication configuration
  */
-const { projectName, account, config } = loadDeploymentConfig();
+const { projectName, account, config, auth } = loadDeploymentConfig();
 
 // -----------------------------------------------------------------------------
 // Define and Deploy the OSMLGeoAgentStack
 // -----------------------------------------------------------------------------
 
-new OSMLGeoAgentStack(app, projectName, {
+new OSMLGeoAgentStack(app, `${projectName}-GeoAgent`, {
   env: {
     account: account.id,
     region: account.region
   },
+  projectName: projectName,
+  isProd: account.isProd,
+  serviceNameAbbreviation: config.serviceNameAbbreviation,
   targetVpcId: config.targetVpcId,
   workspaceBucketName: config.workspaceBucketName,
+  auth: auth,
   // Solution ID 'SO9240' should be verified to match the official AWS Solutions reference.
   description:
     "OSML GeoAgent, Guidance for Processing Overhead Imagery on AWS (SO9240)"

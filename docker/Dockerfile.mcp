@@ -1,0 +1,96 @@
+# Copyright 2025 Amazon.com, Inc. or its affiliates.
+
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023-minimal AS build
+
+# Build time arguments
+ARG BUILD_CERT=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+ARG PIP_INSTALL_LOCATION=https://pypi.org/simple/
+ARG MINICONDA_VERSION=Miniconda3-latest-Linux-x86_64
+ARG MINICONDA_URL=https://repo.anaconda.com/miniconda/${MINICONDA_VERSION}.sh
+ARG CONDA_ENV_NAME="osml_geo_agents"
+
+# Define required packages to install
+ARG PACKAGES="wget"
+
+# Give sudo permissions
+USER root
+
+# Configure, update, and refresh yum environment
+RUN dnf -y upgrade && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Install all our dependencies including curl for health checks
+RUN dnf install -y $PACKAGES
+
+# Clean up after installing packages
+RUN rm -rf /var/cache/dnf
+
+# Install Miniconda
+RUN wget -c ${MINICONDA_URL} && \
+    chmod +x ${MINICONDA_VERSION}.sh && \
+    ./${MINICONDA_VERSION}.sh -b -f -p /opt/conda && \
+    rm ${MINICONDA_VERSION}.sh && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
+
+# Add conda to the path
+ENV PATH=/opt/conda/bin:$PATH
+
+# Copy conda environment file
+COPY conda/agent-environment.yml /tmp/environment.yml
+
+# Install python with conda and remove additional unnecessary files
+RUN conda config --system --prepend channels conda-forge && \
+    conda config --system --set auto_update_conda false && \
+    conda config --system --set show_channel_urls true && \
+    conda config --system --remove channels defaults && \
+    conda env create -n ${CONDA_ENV_NAME} --file /tmp/environment.yml && \
+    conda clean -afy && \
+    rm -rf /opt/conda/pkgs && \
+    rm /tmp/environment.yml
+
+# Stage 2: FastMCP server
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023-minimal AS mcp-server
+
+# Environment configuration
+ENV CONDA_ENV_NAME="osml_geo_agents"
+ENV PATH="/opt/conda/bin:/opt/conda/envs/osml_geo_agents/bin:/usr/local/bin:/usr/bin:/bin"
+
+# Copy the conda environment from build stage
+COPY --from=build /opt/conda /opt/conda
+
+# Create conda activation script
+RUN ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
+
+# Copy application code
+COPY . /app
+WORKDIR /app
+
+# Install application package in conda environment
+RUN /opt/conda/bin/conda run --no-capture-output -n ${CONDA_ENV_NAME} python -m pip install --no-cache-dir /app
+
+# Expose port
+EXPOSE 8080
+
+# Set entry point for FastMCP server
+CMD ["/opt/conda/envs/osml_geo_agents/bin/python", "-m", "aws.osml.geoagents.mcp.deployed_server"]
+
+# Stage 3: Local FastMCP Server
+FROM build AS mcp-local
+
+# Add conda to the path
+ENV CONDA_ENV_NAME="osml_geo_agents"
+ENV PATH="/opt/conda/bin:/opt/conda/envs/osml_geo_agents/bin:/usr/local/bin:/usr/bin:/bin"
+
+# Copy application code and install
+COPY . /app
+WORKDIR /app
+
+# Install the application into the conda environment
+RUN /opt/conda/bin/conda run --no-capture-output -n ${CONDA_ENV_NAME} python -m pip install --no-cache-dir /app
+
+# Expose port for MCP server
+EXPOSE 8000
+
+# Set entry point for local MCP development (direct SSE transport)
+CMD ["/opt/conda/envs/osml_geo_agents/bin/python", "-m", "aws.osml.geoagents.mcp.mcp_server_entrypoint"]
