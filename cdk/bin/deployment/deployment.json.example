@@ -2,10 +2,16 @@
   "projectName": "<YOUR-PROJECT-NAME>",
   "account": {
     "id": "<YOUR-ACCOUNT-ID>",
-    "region": "<YOUR-REGION>"
+    "region": "<YOUR-REGION>",
+    "isProd": false
   },
   "config": {
     "targetVpcId": "<YOUR-VPC-ID>",
-    "workspaceBucketName": "<YOUR-WORKSPACE-BUCKET-NAME>"
+    "workspaceBucketName": "<YOUR-WORKSPACE-BUCKET-NAME>",
+    "serviceNameAbbreviation": "<GA>"
+  },
+  "auth": {
+    "authority": "<URL to IdP>",
+    "audience": "<YOUR-TOKEN-AUDIENCE>"
   }
 }

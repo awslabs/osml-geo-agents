@@ -14,11 +14,16 @@
  *   "projectName": "example-stack",
  *   "account": {
  *     "id": "123456789012",
- *     "region": "us-west-2"
+ *     "region": "us-west-2",
+ *     "isProd": true|false
  *   },
  *   "config": {
  *     "targetVpcId": "vpc-abc123",
  *     "workspaceBucketName": "my-bucket-name"
+ *   },
+ *   "auth": {
+ *     "authority": "url-to-IdP",
+ *     "audience": "audience"
  *   }
  * }
  * ```
@@ -26,8 +31,8 @@
  * @packageDocumentation
  */
 
-import * as fs from "fs";
-import * as path from "path";
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
 
 /**
  * Represents the structure of the deployment configuration file.
@@ -42,6 +47,8 @@ export interface DeploymentConfig {
     id: string;
     /** AWS region for deployment. */
     region: string;
+    /** Whether this is a production deployment. */
+    isProd: boolean;
   };
 
   /** Custom configuration for the OSML GeoAgent stack. */
@@ -50,6 +57,16 @@ export interface DeploymentConfig {
     targetVpcId: string;
     /** The name of the S3 bucket used as a workspace. */
     workspaceBucketName: string;
+    /** Service name abbreviation for resource naming (optional). */
+    serviceNameAbbreviation?: string;
+  };
+
+  /** Authentication configuration for API Gateway authorization. */
+  auth: {
+    /** JWT authority URL. */
+    authority: string;
+    /** JWT audience for token validation. */
+    audience: string;
   };
 }
 
@@ -113,6 +130,42 @@ function validateStringField(
   }
 
   return trimmed;
+}
+
+/**
+ * Validates a boolean field, checking for correct type.
+ *
+ * @param value - The value to validate
+ * @param fieldName - The name of the field being validated (for error messages)
+ * @param isRequired - Whether the field is required (default: true)
+ * @param defaultValue - Default value to return if field is not provided and not required
+ * @returns The validated boolean value
+ * @throws {DeploymentConfigError} If validation fails
+ */
+function validateBooleanField(
+  value: any,
+  fieldName: string,
+  isRequired: boolean = true,
+  defaultValue?: boolean
+): boolean {
+  if (value === undefined || value === null) {
+    if (isRequired) {
+      throw new DeploymentConfigError(
+        `Missing required field: ${fieldName}`,
+        fieldName
+      );
+    }
+    return defaultValue ?? false;
+  }
+
+  if (typeof value !== "boolean") {
+    throw new DeploymentConfigError(
+      `Field '${fieldName}' must be a boolean, got ${typeof value}`,
+      fieldName
+    );
+  }
+
+  return value;
 }
 
 /**
@@ -204,15 +257,43 @@ function validateBucketName(bucketName: string): string {
 }
 
 /**
+ * Validates URL format for authority.
+ *
+ * @param url - The URL to validate
+ * @returns The validated URL
+ * @throws {DeploymentConfigError} If the URL format is invalid
+ */
+function validateAuthorityUrl(url: string): string {
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== "https:") {
+      throw new DeploymentConfigError(
+        `Authority URL must use HTTPS protocol: '${url}'`,
+        "auth.authority"
+      );
+    }
+    return url;
+  } catch (error) {
+    if (error instanceof DeploymentConfigError) {
+      throw error;
+    }
+    throw new DeploymentConfigError(
+      `Invalid authority URL format: '${url}'. Must be a valid HTTPS URL.`,
+      "auth.authority"
+    );
+  }
+}
+
+/**
  * Loads and validates the deployment configuration from `deployment/deployment.json`.
  *
  * @returns A validated {@link DeploymentConfig} object
  * @throws {DeploymentConfigError} If the file is missing, malformed, or contains invalid values
  */
 export function loadDeploymentConfig(): DeploymentConfig {
-  const deploymentPath = path.join(__dirname, "deployment.json");
+  const deploymentPath = join(__dirname, "deployment.json");
 
-  if (!fs.existsSync(deploymentPath)) {
+  if (!existsSync(deploymentPath)) {
     throw new DeploymentConfigError(
       `Missing deployment.json file at ${deploymentPath}. Please create it by copying deployment.json.example`
     );
@@ -220,7 +301,7 @@ export function loadDeploymentConfig(): DeploymentConfig {
 
   let parsed: any;
   try {
-    const rawContent = fs.readFileSync(deploymentPath, "utf-8");
+    const rawContent = readFileSync(deploymentPath, "utf-8");
     parsed = JSON.parse(rawContent);
   } catch (error) {
     if (error instanceof SyntaxError) {
@@ -241,7 +322,11 @@ export function loadDeploymentConfig(): DeploymentConfig {
   }
 
   // Validate project name
-  const projectName = validateStringField(parsed.projectName, "projectName");
+  const projectName = validateStringField(
+    parsed.projectName,
+    "projectName",
+    true
+  );
   if (projectName.length === 0) {
     throw new DeploymentConfigError("projectName cannot be empty");
   }
@@ -255,10 +340,17 @@ export function loadDeploymentConfig(): DeploymentConfig {
   }
 
   const accountId = validateAccountId(
-    validateStringField(parsed.account.id, "account.id")
+    validateStringField(parsed.account.id, "account.id", true)
   );
   const region = validateRegion(
-    validateStringField(parsed.account.region, "account.region")
+    validateStringField(parsed.account.region, "account.region", true)
+  );
+
+  const isProd = validateBooleanField(
+    parsed.account.isProd,
+    "account.isProd",
+    false,
+    false
   );
 
   // Validate config section
@@ -279,21 +371,50 @@ export function loadDeploymentConfig(): DeploymentConfig {
     )
   );
 
+  // Validate service name abbreviation
+  let serviceNameAbbreviation: string | undefined;
+  if (parsed.config.serviceNameAbbreviation !== undefined) {
+    serviceNameAbbreviation = validateStringField(
+      parsed.config.serviceNameAbbreviation,
+      "config.serviceNameAbbreviation",
+      false
+    );
+  }
+
+  // Validate auth section
+  if (!parsed.auth || typeof parsed.auth !== "object") {
+    throw new DeploymentConfigError(
+      "Authentication configuration is required. Please provide 'auth' object with 'authority' and 'audience' in deployment.json",
+      "auth"
+    );
+  }
+
+  const authority = validateAuthorityUrl(
+    validateStringField(parsed.auth.authority, "auth.authority")
+  );
+  const audience = validateStringField(parsed.auth.audience, "auth.audience");
+
   const validatedConfig: DeploymentConfig = {
     projectName,
     account: {
       id: accountId,
-      region: region
+      region: region,
+      isProd: isProd
     },
     config: {
       targetVpcId,
-      workspaceBucketName
+      workspaceBucketName,
+      ...(serviceNameAbbreviation && { serviceNameAbbreviation })
+    },
+    auth: {
+      authority,
+      audience
     }
   };
 
   // Only log non-sensitive configuration details
   console.log(
-    `🚀 Using environment from deployment.json: projectName=${validatedConfig.projectName}, region=${validatedConfig.account.region}`
+    `Using environment from deployment.json: projectName=${validatedConfig.projectName}, region=${validatedConfig.account.region}`
   );
 
   return validatedConfig;

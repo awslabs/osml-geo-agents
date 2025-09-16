@@ -5,7 +5,7 @@ services:
     image: osml-geo-agents:latest
     build:
       context: ./
-      dockerfile: ./docker/Dockerfile.agents
+      dockerfile: ./docker/Dockerfile.mcp
     env_file:
       - .env
     entrypoint: ["conda", "run", "--no-capture-output", "-n", "osml_geo_agents"]
