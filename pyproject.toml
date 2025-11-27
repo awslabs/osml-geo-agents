@@ -8,3 +8,4 @@ addopts = "-ra -q"
 testpaths = [
     "test"
 ]
+asyncio_mode = "auto"

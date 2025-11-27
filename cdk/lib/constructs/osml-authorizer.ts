@@ -4,10 +4,10 @@
 
 import { Duration } from "aws-cdk-lib";
 import {
-  SecurityGroup,
+  ISecurityGroup,
   IVpc,
-  SubnetSelection,
-  ISecurityGroup
+  SecurityGroup,
+  SubnetSelection
 } from "aws-cdk-lib/aws-ec2";
 import { IRole } from "aws-cdk-lib/aws-iam";
 import { Code, Function, Runtime } from "aws-cdk-lib/aws-lambda";
@@ -98,7 +98,7 @@ export class OSMLAuthorizer extends Construct {
 
     this.authorizerFunction = new Function(this, `AuthorizerFunction${id}`, {
       functionName: `${props.name}-AuthorizerFunction`,
-      runtime: Runtime.PYTHON_3_13,
+      runtime: Runtime.PYTHON_3_14,
       vpc: props.vpc,
       securityGroups: [this.securityGroup],
       vpcSubnets: props.vpcSubnets,
@@ -107,7 +107,7 @@ export class OSMLAuthorizer extends Construct {
       memorySize: 256,
       code: Code.fromAsset("lambda/authorizer", {
         bundling: {
-          image: Runtime.PYTHON_3_13.bundlingImage,
+          image: Runtime.PYTHON_3_14.bundlingImage,
           command: [
             "/bin/bash",
             "-c",

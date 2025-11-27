@@ -19,7 +19,8 @@ class LocalAssets:
     A context manager that resolves various types of geospatial references into paths useable by the
     workspace filesystem.
 
-    Example usage:
+    Example usage::
+
         with LocalAssets(geo_data_ref, workspace) as (item, workspace_paths):
             # Reference the assets directly
             if "asset_key" in workspace_paths:

@@ -13,7 +13,11 @@
  */
 
 import { App } from "aws-cdk-lib";
+import { IVpc, Vpc } from "aws-cdk-lib/aws-ec2";
+
+import { NetworkStack } from "../lib/network-stack";
 import { OSMLGeoAgentStack } from "../lib/osml-geo-agent-stack";
+import { TestStack } from "../lib/test-stack";
 import { loadDeploymentConfig } from "./deployment/load-deployment";
 
 // -----------------------------------------------------------------------------
@@ -28,27 +32,93 @@ const app = new App();
  * This includes:
  * - Project name
  * - AWS account ID and region
- * - VPC and S3 workspace configuration
+ * - Network configuration
+ * - S3 workspace configuration
  * - Required authentication configuration
  */
-const { projectName, account, config, auth } = loadDeploymentConfig();
+const deployment = loadDeploymentConfig();
+
+// -----------------------------------------------------------------------------
+// Create VPC (only if importing existing VPC)
+// -----------------------------------------------------------------------------
+
+let vpc: IVpc | undefined;
+if (deployment.networkConfig?.VPC_ID) {
+  // Import existing VPC
+  vpc = Vpc.fromLookup(app, "ImportedVPC", {
+    vpcId: deployment.networkConfig.VPC_ID
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Deploy the network stack
+// -----------------------------------------------------------------------------
+
+const networkStack = new NetworkStack(
+  app,
+  `${deployment.projectName}-GeoAgentNetwork`,
+  {
+    env: {
+      account: deployment.account.id,
+      region: deployment.account.region
+    },
+    deployment: deployment,
+    vpc: vpc,
+    mcpServerPort: deployment.geoAgentConfig?.MCP_SERVER_PORT
+  }
+);
 
 // -----------------------------------------------------------------------------
 // Define and Deploy the OSMLGeoAgentStack
 // -----------------------------------------------------------------------------
 
-new OSMLGeoAgentStack(app, `${projectName}-GeoAgent`, {
-  env: {
-    account: account.id,
-    region: account.region
-  },
-  projectName: projectName,
-  isProd: account.isProd,
-  serviceNameAbbreviation: config.serviceNameAbbreviation,
-  targetVpcId: config.targetVpcId,
-  workspaceBucketName: config.workspaceBucketName,
-  auth: auth,
-  // Solution ID 'SO9240' should be verified to match the official AWS Solutions reference.
-  description:
-    "OSML GeoAgent, Guidance for Processing Overhead Imagery on AWS (SO9240)"
-});
+const geoAgentStack = new OSMLGeoAgentStack(
+  app,
+  `${deployment.projectName}-GeoAgent`,
+  {
+    env: {
+      account: deployment.account.id,
+      region: deployment.account.region
+    },
+    projectName: deployment.projectName,
+    prodLike: deployment.account.prodLike,
+    isAdc: deployment.account.isAdc,
+    serviceNameAbbreviation:
+      deployment.geoAgentConfig?.SERVICE_NAME_ABBREVIATION,
+    vpc: networkStack.network.vpc,
+    securityGroup: networkStack.network.securityGroup,
+    workspaceBucketName: deployment.geoAgentConfig?.WORKSPACE_BUCKET_NAME,
+    mcpServerPort: deployment.geoAgentConfig?.MCP_SERVER_PORT,
+    mcpServerCpu: deployment.geoAgentConfig?.MCP_SERVER_CPU,
+    mcpServerMemorySize: deployment.geoAgentConfig?.MCP_SERVER_MEMORY_SIZE,
+    apiStageName: deployment.geoAgentConfig?.API_STAGE_NAME,
+    auth: deployment.auth,
+    description:
+      "OSML GeoAgent, Guidance for Processing Overhead Imagery on AWS (SO9240)"
+  }
+);
+
+geoAgentStack.node.addDependency(networkStack);
+
+// -----------------------------------------------------------------------------
+// Deploy the TestStack (if integration tests enabled)
+// -----------------------------------------------------------------------------
+
+if (deployment.deployIntegrationTests) {
+  const testStack = new TestStack(
+    app,
+    `${deployment.projectName}-GeoAgentTest`,
+    {
+      env: {
+        account: deployment.account.id,
+        region: deployment.account.region
+      },
+      deployment: deployment,
+      vpc: networkStack.network.vpc,
+      albDnsName: geoAgentStack.alb.loadBalancerDnsName,
+      securityGroup: networkStack.network.securityGroup,
+      workspaceBucketName: geoAgentStack.workspaceBucket.bucketName
+    }
+  );
+  testStack.node.addDependency(geoAgentStack);
+}

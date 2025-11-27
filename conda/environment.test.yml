@@ -1,0 +1,13 @@
+# Copyright 2025 Amazon.com, Inc. or its affiliates.
+
+name: geo_agent_test
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13
+  - awslambdaric
+  - python-json-logger
+  - conda-forge::mcp=1.21.2
+  - pytest>=8.0.0
+  - pytest-asyncio>=0.23.0
+  - boto3

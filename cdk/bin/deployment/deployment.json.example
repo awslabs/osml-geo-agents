@@ -3,15 +3,31 @@
   "account": {
     "id": "<YOUR-ACCOUNT-ID>",
     "region": "<YOUR-REGION>",
-    "isProd": false
+    "prodLike": false,
+    "isAdc": false
   },
-  "config": {
-    "targetVpcId": "<YOUR-VPC-ID>",
-    "workspaceBucketName": "<YOUR-WORKSPACE-BUCKET-NAME>",
-    "serviceNameAbbreviation": "<GA>"
+  "networkConfig": {
+    "VPC_ID": "<YOUR-VPC-ID>",
+    "TARGET_SUBNETS": ["<SUBNET-1>", "<SUBNET-2>"],
+    "SECURITY_GROUP_ID": "<YOUR-SECURITY-GROUP-ID>"
+  },
+  "geoAgentConfig": {
+    "WORKSPACE_BUCKET_NAME": "<YOUR-WORKSPACE-BUCKET-NAME>",
+    "SERVICE_NAME_ABBREVIATION": "GA",
+    "MCP_SERVER_PORT": 8080,
+    "MCP_SERVER_CPU": 2048,
+    "MCP_SERVER_MEMORY_SIZE": 4096,
+    "API_STAGE_NAME": "prod"
   },
   "auth": {
     "authority": "<URL to IdP>",
     "audience": "<YOUR-TOKEN-AUDIENCE>"
+  },
+  "deployIntegrationTests": true,
+  "testConfig": {
+    "BUILD_FROM_SOURCE": false,
+    "TEST_CONTAINER_URI": "awsosml/osml-geo-agents-test:latest",
+    "TEST_CONTAINER_BUILD_PATH": "../",
+    "TEST_CONTAINER_DOCKERFILE": "docker/Dockerfile.integ"
   }
 }

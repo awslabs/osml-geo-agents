@@ -6,6 +6,7 @@ import "source-map-support/register";
 
 import { App, Aspects, Stack } from "aws-cdk-lib";
 import { Annotations, Match } from "aws-cdk-lib/assertions";
+import { SecurityGroup, Vpc } from "aws-cdk-lib/aws-ec2";
 import { SynthesisMessage } from "aws-cdk-lib/cx-api";
 import { AwsSolutionsChecks } from "cdk-nag";
 
@@ -94,11 +95,27 @@ describe("cdk-nag Compliance Checks", () => {
       region: "us-west-2" // Dummy region for testing
     };
 
+    // Create test stack for resource lookup context
+    const testStack = new Stack(app, "TestStack", { env: environment });
+
+    // Create mock VPC and SecurityGroup for testing within stack context
+    const mockVpc = Vpc.fromLookup(testStack, "TestVpc", {
+      vpcId: "vpc-12345678"
+    });
+
+    const mockSecurityGroup = SecurityGroup.fromSecurityGroupId(
+      testStack,
+      "TestSecurityGroup",
+      "sg-12345678"
+    );
+
     stack = new OSMLGeoAgentStack(app, "OSMLGeoAgentsStack", {
       env: environment,
       projectName: "osml",
-      isProd: false,
-      targetVpcId: "vpc-12345678",
+      prodLike: false,
+      isAdc: false,
+      vpc: mockVpc,
+      securityGroup: mockSecurityGroup,
       workspaceBucketName: "fake-test-bucket",
       auth: {
         authority: "https://www.auth.com",
