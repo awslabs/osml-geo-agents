@@ -59,7 +59,7 @@ def append_operation(
         append_dataset_title = f"Combined dataset from {len(dataset_titles)} sources"
         append_dataset_summary = (
             f"This dataset contains {len(result_gdf)} features resulting from appending "
-            f"{len(dataset_references)} datasets: {', '.join(dataset_titles)}. "
+            f"{len(dataset_references)} datasets: {', '.join(dataset_titles)}."
         )
 
         # Write the derived dataset to the local workspace cache

@@ -2,74 +2,46 @@
  * Copyright 2025 Amazon.com, Inc. or its affiliates.
  */
 
-import { validateProps, OSMLGeoAgentStackProps } from "../lib/stack-props";
+import { App, Stack } from "aws-cdk-lib";
+import { SecurityGroup, Vpc } from "aws-cdk-lib/aws-ec2";
 
-// Base valid properties for testing - modify as needed for specific test cases
-const validProps: OSMLGeoAgentStackProps = {
-  projectName: "osml",
-  isProd: false,
-  targetVpcId: "vpc-12345678",
-  workspaceBucketName: "valid-bucket-name",
-  auth: {
-    authority: "https://auth.example.com",
-    audience: "test-audience"
-  }
-};
+import { OSMLAuth } from "../lib/constructs/osml-auth";
+import { OSMLGeoAgentStackProps, validateProps } from "../lib/stack-props";
+
+// Create mock resources within a test context
+let validProps: OSMLGeoAgentStackProps;
 
 describe("OSMLGeoAgentStack Validation", () => {
-  describe("VPC ID Validation", () => {
-    test("should accept valid VPC ID", () => {
-      expect(() => {
-        validateProps(validProps);
-      }).not.toThrow();
+  beforeAll(() => {
+    // Create test app and stack for resource lookup context
+    const testApp = new App({});
+    const testStack = new Stack(testApp, "TestStack", {
+      env: { account: "123456789012", region: "us-west-2" }
     });
 
-    test("should reject invalid VPC ID format", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          targetVpcId: "invalid-vpc-id"
-        });
-      }).toThrow("Invalid VPC ID format: invalid-vpc-id");
+    const mockVpc = Vpc.fromLookup(testStack, "TestVpc", {
+      vpcId: "vpc-12345678"
     });
+    const mockSecurityGroup = SecurityGroup.fromSecurityGroupId(
+      testStack,
+      "TestSecurityGroup",
+      "sg-12345678"
+    );
 
-    test("should reject VPC ID without vpc- prefix", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          targetVpcId: "12345678"
-        });
-      }).toThrow("Invalid VPC ID format: 12345678");
-    });
-
-    test("should reject VPC ID with wrong character set", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          targetVpcId: "vpc-1234567g" // 'g' is not valid hex
-        });
-      }).toThrow("Invalid VPC ID format: vpc-1234567g");
-    });
-
-    test("should reject VPC ID that is too short", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          targetVpcId: "vpc-123"
-        });
-      }).toThrow("Invalid VPC ID format: vpc-123");
-    });
-
-    test("should reject VPC ID that is too long", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          targetVpcId: "vpc-1234567890123456789"
-        });
-      }).toThrow("Invalid VPC ID format: vpc-1234567890123456789");
-    });
+    // Base valid properties for testing - modify as needed for specific test cases
+    validProps = {
+      projectName: "osml",
+      prodLike: false,
+      isAdc: false,
+      vpc: mockVpc,
+      securityGroup: mockSecurityGroup,
+      workspaceBucketName: "valid-bucket-name",
+      auth: {
+        authority: "https://auth.example.com",
+        audience: "test-audience"
+      }
+    };
   });
-
   describe("S3 Bucket Name Validation", () => {
     test("should accept valid S3 bucket name", () => {
       expect(() => {
@@ -398,7 +370,7 @@ describe("OSMLGeoAgentStack Validation", () => {
       expect(() => {
         validateProps({
           ...validProps,
-          auth: undefined as any
+          auth: undefined as unknown as OSMLAuth
         });
       }).toThrow("auth configuration is required");
     });
@@ -409,7 +381,7 @@ describe("OSMLGeoAgentStack Validation", () => {
           ...validProps,
           auth: {
             audience: "test-audience"
-          } as any
+          } as unknown as OSMLAuth
         });
       }).toThrow("auth.authority is required and must be a non-empty string");
     });
@@ -420,7 +392,7 @@ describe("OSMLGeoAgentStack Validation", () => {
           ...validProps,
           auth: {
             authority: "https://auth.example.com"
-          } as any
+          } as unknown as OSMLAuth
         });
       }).toThrow("auth.audience is required and must be a non-empty string");
     });
@@ -481,14 +453,13 @@ describe("OSMLGeoAgentStack Validation", () => {
       }).not.toThrow();
     });
 
-    test("should reject configuration with both invalid VPC ID and bucket name", () => {
+    test("should reject configuration with invalid bucket name", () => {
       expect(() => {
         validateProps({
           ...validProps,
-          targetVpcId: "invalid-vpc",
           workspaceBucketName: "invalid-bucket."
         });
-      }).toThrow("Invalid VPC ID format: invalid-vpc");
+      }).toThrow("Invalid S3 bucket name format: invalid-bucket.");
     });
   });
 });

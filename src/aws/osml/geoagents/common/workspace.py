@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 import geopandas as gpd
 import pyarrow.parquet as pq
 from pystac import Asset, Item
+from s3fs import S3FileSystem
 
 from aws.osml.geoagents.common.stac_reference import STACReference
 
@@ -63,8 +64,45 @@ class Workspace:
         self.filesystem = filesystem
         self.prefix = prefix.rstrip("/")
 
-        # For backward compatibility, extract user_id from prefix if it's the last component
+        # Extract user_id from prefix if it's the last component
         self.user_id = os.path.basename(self.prefix) if self.prefix else "shared"
+
+    def _is_s3_filesystem(self) -> bool:
+        """
+        Check if the filesystem is an S3FileSystem.
+
+        :return: True if using S3FileSystem, False otherwise
+        """
+        return isinstance(self.filesystem, S3FileSystem)
+
+    def _is_local_path(self, file_path: str) -> bool:
+        """
+        Check if a file path is a local filesystem path.
+
+        Local paths include:
+        - Absolute paths starting with / (e.g., /tmp/file.wkt)
+        - Relative paths (e.g., ../data/file.txt, data/file.txt)
+
+        S3 paths should use the s3:// URI format.
+
+        :param file_path: Path to check
+        :return: True if local path, False if S3 path
+        """
+        return file_path.startswith("/") or (not file_path.startswith("s3://"))
+
+    def _safe_makedirs(self, dir_path: str) -> None:
+        """
+        Safely create directories, skipping the operation for S3 filesystems.
+
+        S3 doesn't require directories to exist before writing objects - it treats
+        paths as object keys, not directory structures. Calling makedirs on S3
+        can cause permission errors as it tries to create buckets.
+
+        :param dir_path: Directory path to create
+        """
+        if not self._is_s3_filesystem():
+            # Only create directories for non-S3 filesystems
+            self.filesystem.makedirs(dir_path, exist_ok=True)
 
     def _get_stac_item_base_path(self, item_id: str, collections: Optional[List[str]] = None) -> str:
         """
@@ -226,7 +264,7 @@ class Workspace:
                     asset_path = f"{item_base_path}/{asset_key}/{local_path.name}"
 
                     # Make sure the directory exists
-                    self.filesystem.makedirs(os.path.dirname(asset_path), exist_ok=True)
+                    self._safe_makedirs(os.path.dirname(asset_path))
 
                     # Upload/copy the asset to the filesystem
                     with open(local_path, "rb") as src:
@@ -264,7 +302,7 @@ class Workspace:
 
         try:
             # Make sure the directory exists
-            self.filesystem.makedirs(os.path.dirname(item_json_path), exist_ok=True)
+            self._safe_makedirs(os.path.dirname(item_json_path))
 
             # Upload item JSON to the filesystem
             with self.filesystem.open(item_json_path, "w") as f:
@@ -316,8 +354,14 @@ class Workspace:
         :return: A GeoDataFrame created from the WKT data with CRS set to EPSG:4326
         """
         try:
-            with self.filesystem.open(file_path, "r") as f:
-                wkt_data = f.read()
+            if self._is_local_path(file_path):
+                # Use local filesystem for local paths (e.g., /tmp/file.wkt)
+                with open(file_path, "r") as f:
+                    wkt_data = f.read()
+            else:
+                # Use workspace S3 filesystem for S3 paths
+                with self.filesystem.open(file_path, "r") as f:
+                    wkt_data = f.read()
 
             # Create a GeoSeries from the WKT strings
             geo_series = gpd.GeoSeries.from_wkt([wkt_data])
@@ -457,16 +501,28 @@ class Workspace:
         respectively. Other extensions (.xml, .csv, etc.) are supported as well but depend
         on GeoPandas.
 
+        For paths within the temp_dir, writes directly to local filesystem.
+        For workspace paths, uses the workspace filesystem (local or S3).
+
         :param dataset_path: Path in the filesystem for the output file
         :param dataset_gdf: the dataset to write
         """
-
         # Make sure the directory exists
-        self.filesystem.makedirs(os.path.dirname(dataset_path), exist_ok=True)
+        self._safe_makedirs(os.path.dirname(dataset_path))
+
+        # Determine if this is a temp file (local) or workspace file
+        # Temp files start with system temp directory (e.g., /tmp)
+
+        is_temp_file = str(dataset_path).startswith(tempfile.gettempdir())
 
         # Check file extension to determine write method
         if dataset_path.lower().endswith((".parquet", ".geoparquet")):
-            dataset_gdf.to_parquet(dataset_path, filesystem=self.filesystem)
+            if is_temp_file:
+                # Write temp files directly to local filesystem
+                dataset_gdf.to_parquet(dataset_path)
+            else:
+                # Write workspace files using workspace filesystem
+                dataset_gdf.to_parquet(dataset_path, filesystem=self.filesystem)
         else:
             # Determine the driver based on file extension
             _, ext = os.path.splitext(dataset_path.lower())
@@ -485,17 +541,19 @@ class Workspace:
                         f"Multiple geometry columns detected. Combining all geometry columns for {os.path.basename(dataset_path)}"
                     )
 
-            # This is a hack to work around some compatability issues between
-            # GeoPandas / pyogrio and the fsspec based filesystem used by the
-            # workspace. pyogrio is using GDAL libraries under the cover and
-            # those are not working well with the file like objects that
-            # result from the fsspec open calls. This hack has the pyogrio
-            # library write to a local temporary file which is then copied to
-            # the final location in the fsspec filesystem.
-            with tempfile.NamedTemporaryFile(suffix=ext) as temp_file:
-                write_gdf.to_file(temp_file.name, driver=driver)
+            if is_temp_file:
+                # Write temp files directly to local filesystem
+                write_gdf.to_file(dataset_path, driver=driver)
+            else:
+                # For workspace files, use temp file workaround for fsspec compatibility
+                # This is a hack to work around compatibility issues between
+                # GeoPandas/pyogrio and the fsspec based filesystem used by the
+                # workspace. pyogrio uses GDAL libraries which don't work well with
+                # file-like objects from fsspec open calls.
+                with tempfile.NamedTemporaryFile(suffix=ext) as temp_file:
+                    write_gdf.to_file(temp_file.name, driver=driver)
 
-                # Read the temporary file and write to the filesystem
-                with open(temp_file.name, "rb") as src:
-                    with self.filesystem.open(dataset_path, "wb") as dst:
-                        dst.write(src.read())
+                    # Read the temporary file and write to the filesystem
+                    with open(temp_file.name, "rb") as src:
+                        with self.filesystem.open(dataset_path, "wb") as dst:
+                            dst.write(src.read())

@@ -170,7 +170,9 @@ For more details on development practices and guidelines, see the [CONTRIBUTING.
 
 ## Testing
 
-Run tests using tox:
+### Unit Tests
+
+Run unit tests using tox:
 
 ```bash
 # Run all tests
@@ -179,6 +181,47 @@ tox
 # Run specific tests
 tox -e py312 -- test/aws/osml/test_foo.py
 ```
+
+### Integration Tests
+
+Integration tests validate the deployed infrastructure by invoking the test Lambda function that runs the full test suite against the deployed MCP server.
+
+#### Prerequisites
+
+- The CDK stack must be deployed with integration test infrastructure enabled
+- Integration tests are enabled by default in the deployment configuration
+- AWS credentials must be configured with access to the deployed account
+
+#### Configuration
+
+Integration tests are controlled by the `deployIntegrationTests` flag in your `cdk/bin/deployment/deployment.json`:
+
+```json
+{
+  "deployIntegrationTests": true
+}
+```
+
+When enabled (default), the CDK deployment creates:
+- A dedicated test stack with a Lambda function (`GeoAgentTestRunner`)
+- IAM roles with necessary permissions for testing
+- Network configuration to access the MCP server
+
+#### Running Integration Tests
+
+Execute the integration test script:
+
+```bash
+./scripts/geo_agents_integ.sh
+```
+
+The script will:
+1. Detect your AWS region from environment variables or AWS CLI configuration
+2. Invoke the `GeoAgentTestRunner` Lambda function
+3. Stream CloudWatch logs showing test execution
+4. Display test results with pass/fail summary
+
+**Note:** The integration test script will fail if the test stack is disabled in the deployment configuration and not deployed. Ensure `deployIntegrationTests` is set to `true` before running integration tests.
 
 ## Documentation
 

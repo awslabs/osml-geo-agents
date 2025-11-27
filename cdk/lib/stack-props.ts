@@ -2,8 +2,10 @@
  * Copyright 2025 Amazon.com, Inc. or its affiliates.
  */
 
-import { OSMLAuth } from "./constructs/osml-auth";
 import { StackProps } from "aws-cdk-lib";
+import { ISecurityGroup, IVpc } from "aws-cdk-lib/aws-ec2";
+
+import { OSMLAuth } from "./constructs/osml-auth";
 
 /**
  * Properties for configuring the OSML Geo Agent Stack.
@@ -17,10 +19,15 @@ export interface OSMLGeoAgentStackProps extends StackProps {
   projectName: string;
 
   /**
-   * Whether this is a production deployment.
+   * Whether this is a production-like deployment.
    * Affects removal policies and other production-specific configurations.
    */
-  isProd: boolean;
+  prodLike: boolean;
+
+  /**
+   * Whether this is an ADC (Amazon Dedicated Cloud) environment.
+   */
+  isAdc: boolean;
 
   /**
    * Service name abbreviation for resource naming.
@@ -29,11 +36,17 @@ export interface OSMLGeoAgentStackProps extends StackProps {
   serviceNameAbbreviation?: string;
 
   /**
-   * The ID of the target VPC where the agent resources will be deployed.
+   * The VPC where the agent resources will be deployed.
    * The VPC must have private subnets with egress access for the agents to function properly.
-   * @pattern ^vpc-[a-f0-9]{8,17}$
+   * Passed from NetworkStack.
    */
-  targetVpcId: string;
+  vpc: IVpc;
+
+  /**
+   * The security group for the MCP server resources.
+   * Passed from NetworkStack.
+   */
+  securityGroup: ISecurityGroup;
 
   /**
    * The name of the S3 bucket used as a shared workspace for the MCP server.
@@ -82,7 +95,7 @@ export interface OSMLGeoAgentStackProps extends StackProps {
  * @param fieldName - The name of the field being validated
  * @throws {Error} When validation fails
  */
-const validateString = (value: any, fieldName: string): void => {
+const validateString = (value: unknown, fieldName: string): void => {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new Error(`${fieldName} must be a non-empty string`);
   }
@@ -94,7 +107,7 @@ const validateString = (value: any, fieldName: string): void => {
  * @param fieldName - The name of the field being validated
  * @throws {Error} When validation fails
  */
-const validateBoolean = (value: any, fieldName: string): void => {
+const validateBoolean = (value: unknown, fieldName: string): void => {
   if (typeof value !== "boolean") {
     throw new Error(`${fieldName} must be a boolean`);
   }
@@ -122,12 +135,21 @@ const validateProjectName = (projectName: string): void => {
 };
 
 /**
- * Validates the isProd boolean flag.
- * @param isProd - The production flag to validate
+ * Validates the prodLike boolean flag.
+ * @param prodLike - The production-like flag to validate
  * @throws {Error} When validation fails
  */
-const validateIsProd = (isProd: boolean): void => {
-  validateBoolean(isProd, "isProd");
+const validateProdLike = (prodLike: boolean): void => {
+  validateBoolean(prodLike, "prodLike");
+};
+
+/**
+ * Validates the isAdc boolean flag.
+ * @param isAdc - The ADC flag to validate
+ * @throws {Error} When validation fails
+ */
+const validateIsAdc = (isAdc: boolean): void => {
+  validateBoolean(isAdc, "isAdc");
 };
 
 /**
@@ -157,22 +179,6 @@ const validateServiceNameAbbreviation = (
         "Service name abbreviation can only contain alphanumeric characters"
       );
     }
-  }
-};
-
-/**
- * Validates the VPC ID format.
- * @param targetVpcId - The VPC ID to validate
- * @throws {Error} When validation fails
- */
-const validateVpc = (targetVpcId: string): void => {
-  validateString(targetVpcId, "targetVpcId");
-
-  // Validate VPC ID format: must start with 'vpc-' followed by 8-17 hexadecimal characters
-  if (!/^vpc-[a-f0-9]{8,17}$/.test(targetVpcId)) {
-    throw new Error(
-      `Invalid VPC ID format: ${targetVpcId}. Must match pattern: vpc-[a-f0-9]{8,17}`
-    );
   }
 };
 
@@ -395,8 +401,8 @@ export const validateProps = (props: OSMLGeoAgentStackProps): void => {
   try {
     // Validate required properties
     validateProjectName(props.projectName);
-    validateIsProd(props.isProd);
-    validateVpc(props.targetVpcId);
+    validateProdLike(props.prodLike);
+    validateIsAdc(props.isAdc);
     validateAuth(props.auth);
 
     // Validate optional properties

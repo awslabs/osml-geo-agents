@@ -37,7 +37,7 @@ async def reject_sse_requests(request) -> Response:
 
     # For non-SSE GET requests, return a simple health response
     logger.info(f"Handling non-SSE GET request from {request.client} - Accept: {accept_header}")
-    return health_check(None)
+    return await health_check(request)
 
 
 def main() -> None:

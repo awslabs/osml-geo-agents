@@ -27,6 +27,7 @@ def validate_dataset_crs(dataset: gpd.GeoDataFrame, georef: GeoDataReference) ->
     if dataset.crs is None:
         dataset.set_crs("EPSG:4326", inplace=True)
     elif dataset.crs != "EPSG:4326":
+        logger.warning(f"Unsupported CRS detected: {dataset.crs} for dataset {georef}")
         raise ValueError(f"Dataset {georef} does not use a supported CRS. Only EPSG:4326 is supported.")
 
 

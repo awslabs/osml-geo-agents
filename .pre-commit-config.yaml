@@ -65,7 +65,6 @@ repos:
             cdk/cdk\.context\.json|
             cdk/\.gitignore|
             cdk/eslint\.config\.mjs|
-            cdk/\.eslintrc\.js|
             cdk/jest\.config\.js|
             cdk/\.npmignore|
             cdk/\.prettierrc|
@@ -97,7 +96,6 @@ repos:
             cdk/cdk\.context\.json|
             cdk/\.gitignore|
             cdk/eslint\.config\.mjs|
-            cdk/\.eslintrc\.js|
             cdk/jest\.config\.js|
             cdk/\.npmignore|
             cdk/\.prettierrc|
@@ -119,7 +117,7 @@ repos:
     hooks:
       - id: npm-install
         name: Install npm dependencies
-        entry: bash -c 'cd cdk && npm ci'
+        entry: bash -c 'cd cdk && npm install'
         language: system
         files: ^cdk/.*\.(ts|tsx|js|jsx|json)$
         pass_filenames: false

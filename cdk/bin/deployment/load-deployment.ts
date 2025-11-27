@@ -34,6 +34,8 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 
+import { NetworkConfig } from "../../lib/constructs/geo-agent/network";
+
 /**
  * Represents the structure of the deployment configuration file.
  */
@@ -47,18 +49,29 @@ export interface DeploymentConfig {
     id: string;
     /** AWS region for deployment. */
     region: string;
-    /** Whether this is a production deployment. */
-    isProd: boolean;
+    /** Whether this is a production-like environment. */
+    prodLike: boolean;
+    /** Whether this is an ADC (Amazon Dedicated Cloud) environment. */
+    isAdc: boolean;
   };
 
-  /** Custom configuration for the OSML GeoAgent stack. */
-  config: {
-    /** The ID of the target VPC for resource placement. */
-    targetVpcId: string;
-    /** The name of the S3 bucket used as a workspace. */
-    workspaceBucketName: string;
+  /** Network configuration (optional). If not provided, NetworkStack will create a new VPC. */
+  networkConfig?: NetworkConfig;
+
+  /** Custom configuration for the OSML GeoAgent stack (optional). */
+  geoAgentConfig?: {
+    /** The name of the S3 bucket used as a workspace (optional - will create one if not provided). */
+    WORKSPACE_BUCKET_NAME?: string;
     /** Service name abbreviation for resource naming (optional). */
-    serviceNameAbbreviation?: string;
+    SERVICE_NAME_ABBREVIATION?: string;
+    /** MCP server port (optional). */
+    MCP_SERVER_PORT?: number;
+    /** MCP server CPU units (optional). */
+    MCP_SERVER_CPU?: number;
+    /** MCP server memory size in MB (optional). */
+    MCP_SERVER_MEMORY_SIZE?: number;
+    /** API Gateway stage name (optional). */
+    API_STAGE_NAME?: string;
   };
 
   /** Authentication configuration for API Gateway authorization. */
@@ -68,6 +81,26 @@ export interface DeploymentConfig {
     /** JWT audience for token validation. */
     audience: string;
   };
+
+  /** Whether to deploy integration test infrastructure (optional). */
+  deployIntegrationTests?: boolean;
+
+  /** Test configuration (optional). */
+  testConfig?: TestConfig;
+}
+
+/**
+ * Test configuration for integration tests.
+ */
+export interface TestConfig {
+  /** Whether to build test container from source. */
+  BUILD_FROM_SOURCE?: boolean;
+  /** URI of pre-built test container image. */
+  TEST_CONTAINER_URI?: string;
+  /** Path to test container build directory. */
+  TEST_CONTAINER_BUILD_PATH?: string;
+  /** Path to Dockerfile for test container. */
+  TEST_CONTAINER_DOCKERFILE?: string;
 }
 
 /**
@@ -100,7 +133,7 @@ class DeploymentConfigError extends Error {
  * @throws {DeploymentConfigError} If validation fails
  */
 function validateStringField(
-  value: any,
+  value: unknown,
   fieldName: string,
   isRequired: boolean = true
 ): string {
@@ -143,7 +176,7 @@ function validateStringField(
  * @throws {DeploymentConfigError} If validation fails
  */
 function validateBooleanField(
-  value: any,
+  value: unknown,
   fieldName: string,
   isRequired: boolean = true,
   defaultValue?: boolean
@@ -218,6 +251,40 @@ function validateVpcId(vpcId: string): string {
     );
   }
   return vpcId;
+}
+
+/**
+ * Validates security group ID format.
+ *
+ * @param securityGroupId - The security group ID to validate
+ * @returns The validated security group ID
+ * @throws {DeploymentConfigError} If the security group ID format is invalid
+ */
+function validateSecurityGroupId(securityGroupId: string): string {
+  if (!/^sg-[a-f0-9]{8}(?:[a-f0-9]{9})?$/.test(securityGroupId)) {
+    throw new DeploymentConfigError(
+      `Invalid security group ID format: '${securityGroupId}'. Must start with 'sg-' followed by 8 or 17 hexadecimal characters.`,
+      "networkConfig.SECURITY_GROUP_ID"
+    );
+  }
+  return securityGroupId;
+}
+
+/**
+ * Validates subnet ID format.
+ *
+ * @param subnetId - The subnet ID to validate
+ * @returns The validated subnet ID
+ * @throws {DeploymentConfigError} If the subnet ID format is invalid
+ */
+function validateSubnetId(subnetId: string): string {
+  if (!/^subnet-[a-f0-9]{8}(?:[a-f0-9]{9})?$/.test(subnetId)) {
+    throw new DeploymentConfigError(
+      `Invalid Subnet ID format: '${subnetId}'. Must start with 'subnet-' followed by 8 or 17 hexadecimal characters.`,
+      "networkConfig.TARGET_SUBNETS"
+    );
+  }
+  return subnetId;
 }
 
 /**
@@ -299,10 +366,10 @@ export function loadDeploymentConfig(): DeploymentConfig {
     );
   }
 
-  let parsed: any;
+  let parsed: unknown;
   try {
     const rawContent = readFileSync(deploymentPath, "utf-8");
-    parsed = JSON.parse(rawContent);
+    parsed = JSON.parse(rawContent) as unknown;
   } catch (error) {
     if (error instanceof SyntaxError) {
       throw new DeploymentConfigError(
@@ -321,9 +388,12 @@ export function loadDeploymentConfig(): DeploymentConfig {
     );
   }
 
+  // Cast to a record type for property access
+  const config = parsed as Record<string, unknown>;
+
   // Validate project name
   const projectName = validateStringField(
-    parsed.projectName,
+    config.projectName,
     "projectName",
     true
   );
@@ -332,84 +402,250 @@ export function loadDeploymentConfig(): DeploymentConfig {
   }
 
   // Validate account section
-  if (!parsed.account || typeof parsed.account !== "object") {
+  if (!config.account || typeof config.account !== "object") {
     throw new DeploymentConfigError(
       "Missing or invalid account section in deployment.json",
       "account"
     );
   }
 
+  const account = config.account as Record<string, unknown>;
+
   const accountId = validateAccountId(
-    validateStringField(parsed.account.id, "account.id", true)
+    validateStringField(account.id, "account.id", true)
   );
   const region = validateRegion(
-    validateStringField(parsed.account.region, "account.region", true)
+    validateStringField(account.region, "account.region", true)
   );
 
-  const isProd = validateBooleanField(
-    parsed.account.isProd,
-    "account.isProd",
+  const prodLike = validateBooleanField(
+    account.prodLike,
+    "account.prodLike",
     false,
     false
   );
 
-  // Validate config section
-  if (!parsed.config || typeof parsed.config !== "object") {
-    throw new DeploymentConfigError(
-      "Missing or invalid config section in deployment.json",
-      "config"
-    );
+  const isAdc = validateBooleanField(
+    account.isAdc,
+    "account.isAdc",
+    false,
+    false
+  );
+
+  // Parse and validate network configuration
+  let networkConfig: DeploymentConfig["networkConfig"] = undefined;
+  if (config.networkConfig && typeof config.networkConfig === "object") {
+    const networkConfigRaw = config.networkConfig as Record<string, unknown>;
+
+    // Validate VPC ID if provided
+    let vpcId: string | undefined = undefined;
+    if (
+      networkConfigRaw.VPC_ID !== undefined &&
+      networkConfigRaw.VPC_ID !== null
+    ) {
+      vpcId = validateVpcId(
+        validateStringField(networkConfigRaw.VPC_ID, "networkConfig.VPC_ID")
+      );
+    }
+
+    // Validate target subnets if provided
+    let targetSubnets: string[] | undefined = undefined;
+    if (
+      networkConfigRaw.TARGET_SUBNETS !== undefined &&
+      networkConfigRaw.TARGET_SUBNETS !== null
+    ) {
+      if (!Array.isArray(networkConfigRaw.TARGET_SUBNETS)) {
+        throw new DeploymentConfigError(
+          "Field 'networkConfig.TARGET_SUBNETS' must be an array",
+          "networkConfig.TARGET_SUBNETS"
+        );
+      }
+
+      targetSubnets = networkConfigRaw.TARGET_SUBNETS.map(
+        (subnetId: unknown, index: number) =>
+          validateSubnetId(
+            validateStringField(
+              subnetId,
+              `networkConfig.TARGET_SUBNETS[${index}]`
+            )
+          )
+      );
+    }
+
+    // Validate security group ID if provided
+    let securityGroupId: string | undefined = undefined;
+    if (
+      networkConfigRaw.SECURITY_GROUP_ID !== undefined &&
+      networkConfigRaw.SECURITY_GROUP_ID !== null
+    ) {
+      securityGroupId = validateSecurityGroupId(
+        validateStringField(
+          networkConfigRaw.SECURITY_GROUP_ID,
+          "networkConfig.SECURITY_GROUP_ID"
+        )
+      );
+    }
+
+    // Validate that TARGET_SUBNETS is required when VPC_ID is provided
+    if (vpcId && (!targetSubnets || targetSubnets.length === 0)) {
+      throw new DeploymentConfigError(
+        "When VPC_ID is provided, TARGET_SUBNETS must also be specified with at least one subnet ID",
+        "networkConfig.TARGET_SUBNETS"
+      );
+    }
+
+    // Create the network config data object
+    const networkConfigData: Record<string, unknown> = {};
+    if (vpcId) networkConfigData.VPC_ID = vpcId;
+    if (targetSubnets) networkConfigData.TARGET_SUBNETS = targetSubnets;
+    if (securityGroupId) networkConfigData.SECURITY_GROUP_ID = securityGroupId;
+
+    // Create NetworkConfig instance
+    networkConfig = new NetworkConfig(networkConfigData);
   }
 
-  const targetVpcId = validateVpcId(
-    validateStringField(parsed.config.targetVpcId, "config.targetVpcId")
-  );
-  const workspaceBucketName = validateBucketName(
-    validateStringField(
-      parsed.config.workspaceBucketName,
-      "config.workspaceBucketName"
-    )
-  );
-
-  // Validate service name abbreviation
+  // Parse optional geoAgentConfig section
+  let workspaceBucketName: string | undefined;
   let serviceNameAbbreviation: string | undefined;
-  if (parsed.config.serviceNameAbbreviation !== undefined) {
-    serviceNameAbbreviation = validateStringField(
-      parsed.config.serviceNameAbbreviation,
-      "config.serviceNameAbbreviation",
-      false
-    );
+  let mcpServerPort: number | undefined;
+  let mcpServerCpu: number | undefined;
+  let mcpServerMemorySize: number | undefined;
+  let apiStageName: string | undefined;
+
+  if (config.geoAgentConfig && typeof config.geoAgentConfig === "object") {
+    const geoAgentConfigRaw = config.geoAgentConfig as Record<string, unknown>;
+
+    // WORKSPACE_BUCKET_NAME is optional - stack will create one if not provided
+    if (geoAgentConfigRaw.WORKSPACE_BUCKET_NAME !== undefined) {
+      workspaceBucketName = validateBucketName(
+        validateStringField(
+          geoAgentConfigRaw.WORKSPACE_BUCKET_NAME,
+          "geoAgentConfig.WORKSPACE_BUCKET_NAME",
+          false
+        )
+      );
+    }
+
+    // Validate service name abbreviation
+    if (geoAgentConfigRaw.SERVICE_NAME_ABBREVIATION !== undefined) {
+      serviceNameAbbreviation = validateStringField(
+        geoAgentConfigRaw.SERVICE_NAME_ABBREVIATION,
+        "geoAgentConfig.SERVICE_NAME_ABBREVIATION",
+        false
+      );
+    }
+
+    // Parse optional MCP server configuration
+    if (geoAgentConfigRaw.MCP_SERVER_PORT !== undefined) {
+      mcpServerPort = Number(geoAgentConfigRaw.MCP_SERVER_PORT);
+      if (isNaN(mcpServerPort) || mcpServerPort <= 0) {
+        throw new DeploymentConfigError(
+          "geoAgentConfig.MCP_SERVER_PORT must be a positive number",
+          "geoAgentConfig.MCP_SERVER_PORT"
+        );
+      }
+    }
+
+    if (geoAgentConfigRaw.MCP_SERVER_CPU !== undefined) {
+      mcpServerCpu = Number(geoAgentConfigRaw.MCP_SERVER_CPU);
+      if (isNaN(mcpServerCpu) || mcpServerCpu <= 0) {
+        throw new DeploymentConfigError(
+          "geoAgentConfig.MCP_SERVER_CPU must be a positive number",
+          "geoAgentConfig.MCP_SERVER_CPU"
+        );
+      }
+    }
+
+    if (geoAgentConfigRaw.MCP_SERVER_MEMORY_SIZE !== undefined) {
+      mcpServerMemorySize = Number(geoAgentConfigRaw.MCP_SERVER_MEMORY_SIZE);
+      if (isNaN(mcpServerMemorySize) || mcpServerMemorySize <= 0) {
+        throw new DeploymentConfigError(
+          "geoAgentConfig.MCP_SERVER_MEMORY_SIZE must be a positive number",
+          "geoAgentConfig.MCP_SERVER_MEMORY_SIZE"
+        );
+      }
+    }
+
+    if (geoAgentConfigRaw.API_STAGE_NAME !== undefined) {
+      apiStageName = validateStringField(
+        geoAgentConfigRaw.API_STAGE_NAME,
+        "geoAgentConfig.API_STAGE_NAME",
+        false
+      );
+    }
   }
 
   // Validate auth section
-  if (!parsed.auth || typeof parsed.auth !== "object") {
+  if (!config.auth || typeof config.auth !== "object") {
     throw new DeploymentConfigError(
       "Authentication configuration is required. Please provide 'auth' object with 'authority' and 'audience' in deployment.json",
       "auth"
     );
   }
 
+  const auth = config.auth as Record<string, unknown>;
+
   const authority = validateAuthorityUrl(
-    validateStringField(parsed.auth.authority, "auth.authority")
+    validateStringField(auth.authority, "auth.authority")
   );
-  const audience = validateStringField(parsed.auth.audience, "auth.audience");
+  const audience = validateStringField(auth.audience, "auth.audience");
+
+  // Parse optional deployIntegrationTests flag
+  const deployIntegrationTests = validateBooleanField(
+    config.deployIntegrationTests,
+    "deployIntegrationTests",
+    false,
+    false
+  );
+
+  // Parse optional test configuration
+  let testConfig: DeploymentConfig["testConfig"] = undefined;
+  if (config.testConfig && typeof config.testConfig === "object") {
+    testConfig = config.testConfig as TestConfig;
+  }
+
+  // Build geoAgentConfig only if there are any values to include
+  let geoAgentConfig: DeploymentConfig["geoAgentConfig"] = undefined;
+  if (
+    workspaceBucketName ||
+    serviceNameAbbreviation ||
+    mcpServerPort ||
+    mcpServerCpu ||
+    mcpServerMemorySize ||
+    apiStageName
+  ) {
+    geoAgentConfig = {
+      ...(workspaceBucketName && {
+        WORKSPACE_BUCKET_NAME: workspaceBucketName
+      }),
+      ...(serviceNameAbbreviation && {
+        SERVICE_NAME_ABBREVIATION: serviceNameAbbreviation
+      }),
+      ...(mcpServerPort && { MCP_SERVER_PORT: mcpServerPort }),
+      ...(mcpServerCpu && { MCP_SERVER_CPU: mcpServerCpu }),
+      ...(mcpServerMemorySize && {
+        MCP_SERVER_MEMORY_SIZE: mcpServerMemorySize
+      }),
+      ...(apiStageName && { API_STAGE_NAME: apiStageName })
+    };
+  }
 
   const validatedConfig: DeploymentConfig = {
     projectName,
     account: {
       id: accountId,
       region: region,
-      isProd: isProd
+      prodLike: prodLike,
+      isAdc: isAdc
     },
-    config: {
-      targetVpcId,
-      workspaceBucketName,
-      ...(serviceNameAbbreviation && { serviceNameAbbreviation })
-    },
+    networkConfig,
+    geoAgentConfig,
     auth: {
       authority,
       audience
-    }
+    },
+    deployIntegrationTests,
+    testConfig
   };
 
   // Only log non-sensitive configuration details

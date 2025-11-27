@@ -63,6 +63,16 @@ extensions = [
 ]
 autoapi_type = "python"
 autoapi_dirs = ["../src"]
+autoapi_options = [
+    "members",
+    "undoc-members",
+    "show-inheritance",
+    "show-module-summary",
+]
+autoapi_keep_files = False
+autoapi_add_toctree_entry = True
+# Suppress duplicate warnings by not documenting imported members in __init__.py
+autoapi_python_use_implicit_namespaces = True
 
 source_suffix = ".rst"
 master_doc = "index"
@@ -72,7 +82,7 @@ autodoc_member_order = "bysource"
 default_role = "py:obj"
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "_apidoc"]
 
 # A string that determines how domain objects (e.g. functions, classes,
 # attributes, etc.) are displayed in their table of contents entry.

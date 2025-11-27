@@ -141,7 +141,7 @@ def correlation_operation(
                 )
 
             if distance:
-                correlation_dataset_summary += f"A buffer of {distance} units was applied to the first dataset. "
+                correlation_dataset_summary += f"A buffer of {distance} units was applied to the first dataset."
 
             # Write the derived dataset to the local workspace cache
             stac_ref = STACReference.new_from_timestamp(asset_tag=selected_asset_key1, prefix=function_name)

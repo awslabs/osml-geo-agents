@@ -4,7 +4,7 @@ This CDK project deploys the core infrastructure for running **OSML Geo Agents**
 
 ---
 
-## 🧭 Architecture Overview
+## Architecture Overview
 
 ```ascii
 ┌─────────────────┐     ┌──────────────────┐
@@ -21,7 +21,7 @@ This CDK project deploys the core infrastructure for running **OSML Geo Agents**
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
 Before deploying, ensure the following tools and resources are available:
 
@@ -34,7 +34,7 @@ Before deploying, ensure the following tools and resources are available:
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 ### Deployment File: `bin/deployment/deployment.json`
 
@@ -60,11 +60,11 @@ Update the contents:
 }
 ```
 
-💡 This file is validated at runtime to ensure all required fields are provided. Deployment will fail if any required fields are missing or invalid.
+**Note:** This file is validated at runtime to ensure all required fields are provided. Deployment will fail if any required fields are missing or invalid.
 
 ---
 
-## 🚀 Deployment Instructions
+## Deployment Instructions
 
 ### 1. Install Dependencies
 
@@ -92,7 +92,7 @@ This command will:
 
 ---
 
-## 🧱 Project Structure
+## Project Structure
 
 ```
 .
@@ -114,7 +114,7 @@ This command will:
 
 ---
 
-## 🧪 Development & Testing
+## Development & Testing
 
 ### Useful Commands
 
@@ -132,7 +132,7 @@ This command will:
 
 ---
 
-## 🔐 Security & Best Practices
+## Security & Best Practices
 
 This project integrates **cdk-nag** to validate infrastructure against AWS security best practices. Running `npm run test` will:
 
@@ -140,7 +140,7 @@ This project integrates **cdk-nag** to validate infrastructure against AWS secur
 - Ensure encryption is enabled where applicable
 - Warn about missing logging or compliance settings
 
-📄 **Review the cdk-nag report** to maintain compliance and security posture before production deployments.
+**Review the cdk-nag report** to maintain compliance and security posture before production deployments.
 
 For deeper hardening guidance, refer to:
 
@@ -149,7 +149,7 @@ For deeper hardening guidance, refer to:
 
 ---
 
-## 🧠 Summary
+## Summary
 
 This CDK project provides infrastructure-as-code for deploying geospatial AI capabilities using AWS Bedrock and Lambda. It includes security validations via cdk-nag and supports deployment across multiple environments through configuration files.
 

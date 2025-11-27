@@ -20,9 +20,11 @@ class STACReference:
     Represents a STAC (SpatioTemporal Asset Catalog) reference with optional collections and asset tag.
 
     Format: stac:<collection1>/<collection2>/.../<id>#<asset name>
+
     Examples:
-      - stac:123ABC456D#rgb
-      - stac:foo/bar/123ABC456D#rgb
+
+    - stac:123ABC456D#rgb
+    - stac:foo/bar/123ABC456D#rgb
 
     The collections and #<asset name> portions are optional.
     """

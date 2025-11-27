@@ -2,38 +2,29 @@
  * Copyright 2025 Amazon.com, Inc. or its affiliates.
  */
 
-import { join } from "path";
-
-import { Stack, Duration, RemovalPolicy } from "aws-cdk-lib";
+import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
 import {
-  RestApi,
-  HttpIntegration,
-  EndpointType,
-  Cors,
-  AuthorizationType,
-  IdentitySource,
-  RequestAuthorizer,
-  ConnectionType,
-  VpcLink,
   AccessLogFormat,
+  AuthorizationType,
+  ConnectionType,
+  Cors,
+  EndpointType,
+  HttpIntegration,
+  IdentitySource,
   LogGroupLogDestination,
-  MethodLoggingLevel
+  MethodLoggingLevel,
+  RequestAuthorizer,
+  RestApi,
+  VpcLink
 } from "aws-cdk-lib/aws-apigateway";
-import { CfnWebACL, CfnWebACLAssociation } from "aws-cdk-lib/aws-wafv2";
+import { SubnetType } from "aws-cdk-lib/aws-ec2";
 import {
-  SubnetType,
-  Vpc,
-  SecurityGroup,
-  Peer,
-  Port
-} from "aws-cdk-lib/aws-ec2";
-import {
-  Cluster,
-  ContainerInsights,
-  FargateTaskDefinition,
-  ContainerImage,
   AwsLogDriver,
   AwsLogDriverMode,
+  Cluster,
+  ContainerImage,
+  ContainerInsights,
+  FargateTaskDefinition,
   Protocol as EcsProtocol
 } from "aws-cdk-lib/aws-ecs";
 import { ApplicationLoadBalancedFargateService } from "aws-cdk-lib/aws-ecs-patterns";
@@ -44,22 +35,23 @@ import {
 } from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import { AlbListenerTarget } from "aws-cdk-lib/aws-elasticloadbalancingv2-targets";
 import {
-  Role,
-  PolicyStatement,
   Effect,
-  ServicePrincipal,
-  PolicyDocument
+  PolicyDocument,
+  PolicyStatement,
+  Role,
+  ServicePrincipal
 } from "aws-cdk-lib/aws-iam";
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
 import { Bucket, BucketEncryption, IBucket } from "aws-cdk-lib/aws-s3";
-import { Construct } from "constructs";
+import { CfnWebACL, CfnWebACLAssociation } from "aws-cdk-lib/aws-wafv2";
 import { NagSuppressions } from "cdk-nag";
+import { Construct } from "constructs";
+import { join } from "path";
 
 // Local OSML constructs
 import { OSMLAuthorizer } from "./constructs/osml-authorizer";
-
-import { validateProps, OSMLGeoAgentStackProps } from "./stack-props";
 import { nagSuppressions } from "./nag-suppressions";
+import { OSMLGeoAgentStackProps, validateProps } from "./stack-props";
 
 /**
  * CDK Stack that deploys the OSML Geo Agent MCP Server infrastructure.
@@ -130,13 +122,11 @@ export class OSMLGeoAgentStack extends Stack {
     const mcpServerPort = props.mcpServerPort || 8080;
     const apiStageName = props.apiStageName || "prod";
 
-    // The MCP server runs within a VPC
-    const vpc = Vpc.fromLookup(this, "TargetVpc", {
-      vpcId: props.targetVpcId
-    });
+    // Use VPC and SecurityGroup passed from NetworkStack
+    const vpc = props.vpc;
 
-    // Determine removal policy based on production flag
-    const removalPolicy = props.isProd
+    // Determine removal policy based on production-like flag
+    const removalPolicy = props.prodLike
       ? RemovalPolicy.RETAIN
       : RemovalPolicy.DESTROY;
 
@@ -285,24 +275,6 @@ export class OSMLGeoAgentStack extends Stack {
       }
     );
 
-    // Create security group for the ECS service
-    const mcpServerSecurityGroup = new SecurityGroup(
-      this,
-      `${serviceNameAbbreviation}-MCPServerSecurityGroup`,
-      {
-        vpc: vpc,
-        description: "Security group for Geo Agent MCP Server ECS service",
-        allowAllOutbound: true
-      }
-    );
-
-    // Allow traffic on the container port
-    mcpServerSecurityGroup.addIngressRule(
-      Peer.ipv4(vpc.vpcCidrBlock),
-      Port.tcp(mcpServerPort),
-      "Allow traffic from VPC to MCP server"
-    );
-
     // Create ECS cluster
     this.cluster = new Cluster(
       this,
@@ -310,7 +282,7 @@ export class OSMLGeoAgentStack extends Stack {
       {
         clusterName: `${props.projectName}-${serviceNameAbbreviation}-MCPCluster`,
         vpc: vpc,
-        containerInsightsV2: props.isProd
+        containerInsightsV2: props.prodLike
           ? ContainerInsights.ENABLED
           : ContainerInsights.ENHANCED
       }
@@ -366,7 +338,21 @@ export class OSMLGeoAgentStack extends Stack {
       protocol: EcsProtocol.TCP
     });
 
-    // Create the Fargate service with Application Load Balancer
+    // Create ALB first with NetworkStack security group (following tile-server pattern)
+    this.alb = new ApplicationLoadBalancer(
+      this,
+      `${serviceNameAbbreviation}-MCPServerApplicationLoadBalancer`,
+      {
+        vpc: vpc,
+        vpcSubnets: {
+          subnetType: SubnetType.PRIVATE_WITH_EGRESS
+        },
+        securityGroup: props.securityGroup,
+        internetFacing: false
+      }
+    );
+
+    // Create the Fargate service with pre-created ALB
     this.fargateService = new ApplicationLoadBalancedFargateService(
       this,
       `${serviceNameAbbreviation}-MCPServerService`,
@@ -382,12 +368,9 @@ export class OSMLGeoAgentStack extends Stack {
         taskSubnets: {
           subnetType: SubnetType.PRIVATE_WITH_EGRESS
         },
-        securityGroups: [mcpServerSecurityGroup]
+        loadBalancer: this.alb
       }
     );
-
-    // Get the ALB from the service
-    this.alb = this.fargateService.loadBalancer;
 
     // Configure health check for the target group using health endpoint
     this.fargateService.targetGroup.configureHealthCheck({
@@ -568,7 +551,7 @@ export class OSMLGeoAgentStack extends Stack {
           }
         },
         // Conditionally set CORS - only enable in non-production environments
-        defaultCorsPreflightOptions: !props.isProd
+        defaultCorsPreflightOptions: !props.prodLike
           ? {
               allowOrigins: Cors.ALL_ORIGINS,
               allowHeaders: [
