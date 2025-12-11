@@ -5,7 +5,6 @@
 import { App, Stack } from "aws-cdk-lib";
 import { SecurityGroup, Vpc } from "aws-cdk-lib/aws-ec2";
 
-import { OSMLAuth } from "../lib/constructs/osml-auth";
 import { OSMLGeoAgentStackProps, validateProps } from "../lib/stack-props";
 
 // Create mock resources within a test context
@@ -35,11 +34,7 @@ describe("OSMLGeoAgentStack Validation", () => {
       isAdc: false,
       vpc: mockVpc,
       securityGroup: mockSecurityGroup,
-      workspaceBucketName: "valid-bucket-name",
-      auth: {
-        authority: "https://auth.example.com",
-        audience: "test-audience"
-      }
+      workspaceBucketName: "valid-bucket-name"
     };
   });
   describe("S3 Bucket Name Validation", () => {
@@ -318,131 +313,6 @@ describe("OSMLGeoAgentStack Validation", () => {
       }).toThrow(
         "Invalid CPU/Memory combination: 256 CPU requires memory to be one of: 512, 1024, 2048"
       );
-    });
-  });
-
-  describe("API Stage Name Validation", () => {
-    test("should accept valid API stage name", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          apiStageName: "prod"
-        });
-      }).not.toThrow();
-    });
-
-    test("should accept undefined API stage name", () => {
-      expect(() => {
-        validateProps(validProps);
-      }).not.toThrow();
-    });
-
-    test("should reject API stage name too long", () => {
-      const longStageName = "a".repeat(129);
-      expect(() => {
-        validateProps({
-          ...validProps,
-          apiStageName: longStageName
-        });
-      }).toThrow("API stage name must be between 1 and 128 characters");
-    });
-
-    test("should reject API stage name with invalid characters", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          apiStageName: "stage with spaces"
-        });
-      }).toThrow(
-        "API stage name can only contain alphanumeric characters, hyphens, and underscores"
-      );
-    });
-  });
-
-  describe("Auth Configuration Validation", () => {
-    test("should accept valid auth configuration", () => {
-      expect(() => {
-        validateProps(validProps);
-      }).not.toThrow();
-    });
-
-    test("should reject missing auth object", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          auth: undefined as unknown as OSMLAuth
-        });
-      }).toThrow("auth configuration is required");
-    });
-
-    test("should reject auth object missing authority", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          auth: {
-            audience: "test-audience"
-          } as unknown as OSMLAuth
-        });
-      }).toThrow("auth.authority is required and must be a non-empty string");
-    });
-
-    test("should reject auth object missing audience", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          auth: {
-            authority: "https://auth.example.com"
-          } as unknown as OSMLAuth
-        });
-      }).toThrow("auth.audience is required and must be a non-empty string");
-    });
-
-    test("should reject non-HTTPS authority URL", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          auth: {
-            authority: "http://auth.example.com",
-            audience: "test-audience"
-          }
-        });
-      }).toThrow("auth.authority should use HTTPS protocol for security");
-    });
-
-    test("should reject invalid authority URL format", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          auth: {
-            authority: "not-a-url",
-            audience: "test-audience"
-          }
-        });
-      }).toThrow("auth.authority must be a valid URL");
-    });
-
-    test("should reject empty authority string", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          auth: {
-            authority: "",
-            audience: "test-audience"
-          }
-        });
-      }).toThrow("auth.authority is required and must be a non-empty string");
-    });
-
-    test("should reject empty audience string", () => {
-      expect(() => {
-        validateProps({
-          ...validProps,
-          auth: {
-            authority: "https://auth.example.com",
-            audience: ""
-          }
-        });
-      }).toThrow("auth.audience is required and must be a non-empty string");
     });
   });
 

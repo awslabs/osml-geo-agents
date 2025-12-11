@@ -20,10 +20,6 @@
  *   "config": {
  *     "targetVpcId": "vpc-abc123",
  *     "workspaceBucketName": "my-bucket-name"
- *   },
- *   "auth": {
- *     "authority": "url-to-IdP",
- *     "audience": "audience"
  *   }
  * }
  * ```
@@ -72,14 +68,6 @@ export interface DeploymentConfig {
     MCP_SERVER_MEMORY_SIZE?: number;
     /** API Gateway stage name (optional). */
     API_STAGE_NAME?: string;
-  };
-
-  /** Authentication configuration for API Gateway authorization. */
-  auth: {
-    /** JWT authority URL. */
-    authority: string;
-    /** JWT audience for token validation. */
-    audience: string;
   };
 
   /** Whether to deploy integration test infrastructure (optional). */
@@ -324,34 +312,6 @@ function validateBucketName(bucketName: string): string {
 }
 
 /**
- * Validates URL format for authority.
- *
- * @param url - The URL to validate
- * @returns The validated URL
- * @throws {DeploymentConfigError} If the URL format is invalid
- */
-function validateAuthorityUrl(url: string): string {
-  try {
-    const parsedUrl = new URL(url);
-    if (parsedUrl.protocol !== "https:") {
-      throw new DeploymentConfigError(
-        `Authority URL must use HTTPS protocol: '${url}'`,
-        "auth.authority"
-      );
-    }
-    return url;
-  } catch (error) {
-    if (error instanceof DeploymentConfigError) {
-      throw error;
-    }
-    throw new DeploymentConfigError(
-      `Invalid authority URL format: '${url}'. Must be a valid HTTPS URL.`,
-      "auth.authority"
-    );
-  }
-}
-
-/**
  * Loads and validates the deployment configuration from `deployment/deployment.json`.
  *
  * @returns A validated {@link DeploymentConfig} object
@@ -575,21 +535,6 @@ export function loadDeploymentConfig(): DeploymentConfig {
     }
   }
 
-  // Validate auth section
-  if (!config.auth || typeof config.auth !== "object") {
-    throw new DeploymentConfigError(
-      "Authentication configuration is required. Please provide 'auth' object with 'authority' and 'audience' in deployment.json",
-      "auth"
-    );
-  }
-
-  const auth = config.auth as Record<string, unknown>;
-
-  const authority = validateAuthorityUrl(
-    validateStringField(auth.authority, "auth.authority")
-  );
-  const audience = validateStringField(auth.audience, "auth.audience");
-
   // Parse optional deployIntegrationTests flag
   const deployIntegrationTests = validateBooleanField(
     config.deployIntegrationTests,
@@ -640,10 +585,6 @@ export function loadDeploymentConfig(): DeploymentConfig {
     },
     networkConfig,
     geoAgentConfig,
-    auth: {
-      authority,
-      audience
-    },
     deployIntegrationTests,
     testConfig
   };

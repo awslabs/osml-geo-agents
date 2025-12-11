@@ -34,7 +34,6 @@ const app = new App();
  * - AWS account ID and region
  * - Network configuration
  * - S3 workspace configuration
- * - Required authentication configuration
  */
 const deployment = loadDeploymentConfig();
 
@@ -91,8 +90,6 @@ const geoAgentStack = new OSMLGeoAgentStack(
     mcpServerPort: deployment.geoAgentConfig?.MCP_SERVER_PORT,
     mcpServerCpu: deployment.geoAgentConfig?.MCP_SERVER_CPU,
     mcpServerMemorySize: deployment.geoAgentConfig?.MCP_SERVER_MEMORY_SIZE,
-    apiStageName: deployment.geoAgentConfig?.API_STAGE_NAME,
-    auth: deployment.auth,
     description:
       "OSML GeoAgent, Guidance for Processing Overhead Imagery on AWS (SO9240)"
   }

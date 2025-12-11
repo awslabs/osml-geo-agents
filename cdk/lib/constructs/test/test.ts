@@ -174,7 +174,7 @@ export class Test extends Construct {
       securityGroups: props.securityGroup ? [props.securityGroup] : [],
       logGroup: logGroup,
       environment: {
-        MCP_ENDPOINT: `http://${props.albDnsName}:8080`,
+        MCP_ENDPOINT: `http://${props.albDnsName}`,
         WORKSPACE_BUCKET: props.workspaceBucketName,
         LOG_LEVEL: "INFO",
         PYTHONUNBUFFERED: "1"

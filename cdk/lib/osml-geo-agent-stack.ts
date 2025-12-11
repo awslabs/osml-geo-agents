@@ -3,20 +3,6 @@
  */
 
 import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
-import {
-  AccessLogFormat,
-  AuthorizationType,
-  ConnectionType,
-  Cors,
-  EndpointType,
-  HttpIntegration,
-  IdentitySource,
-  LogGroupLogDestination,
-  MethodLoggingLevel,
-  RequestAuthorizer,
-  RestApi,
-  VpcLink
-} from "aws-cdk-lib/aws-apigateway";
 import { SubnetType } from "aws-cdk-lib/aws-ec2";
 import {
   AwsLogDriver,
@@ -30,10 +16,8 @@ import {
 import { ApplicationLoadBalancedFargateService } from "aws-cdk-lib/aws-ecs-patterns";
 import {
   ApplicationLoadBalancer,
-  NetworkLoadBalancer,
   Protocol as ElbProtocol
 } from "aws-cdk-lib/aws-elasticloadbalancingv2";
-import { AlbListenerTarget } from "aws-cdk-lib/aws-elasticloadbalancingv2-targets";
 import {
   Effect,
   PolicyDocument,
@@ -43,13 +27,11 @@ import {
 } from "aws-cdk-lib/aws-iam";
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
 import { Bucket, BucketEncryption, IBucket } from "aws-cdk-lib/aws-s3";
-import { CfnWebACL, CfnWebACLAssociation } from "aws-cdk-lib/aws-wafv2";
 import { NagSuppressions } from "cdk-nag";
 import { Construct } from "constructs";
 import { join } from "path";
 
 // Local OSML constructs
-import { OSMLAuthorizer } from "./constructs/osml-authorizer";
 import { nagSuppressions } from "./nag-suppressions";
 import { OSMLGeoAgentStackProps, validateProps } from "./stack-props";
 
@@ -57,16 +39,16 @@ import { OSMLGeoAgentStackProps, validateProps } from "./stack-props";
  * CDK Stack that deploys the OSML Geo Agent MCP Server infrastructure.
  *
  * This stack creates a geospatial MCP (Model Context Protocol) server system that provides
- * geospatial analysis tools via API Gateway and ECS Fargate. The system includes:
+ * geospatial analysis tools. The system includes:
  *
  * - An ECS Fargate service running the containerized MCP server
- * - An Application Load Balancer and Network Load Balancer for traffic routing
- * - An API Gateway REST API with VPC Link integration
+ * - An Application Load Balancer for traffic routing within the VPC
  * - S3 bucket for workspace storage (created if not provided)
  * - Proper IAM permissions and VPC configuration
  *
- * The MCP server runs within a VPC using ECS Fargate for persistent connections
- * and uses S3 workspace storage for geospatial assets.
+ * The MCP server runs within a private VPC using ECS Fargate for persistent connections
+ * and uses S3 workspace storage for geospatial assets. Access is restricted to within
+ * the VPC, with no public internet exposure.
  */
 export class OSMLGeoAgentStack extends Stack {
   /**
@@ -85,16 +67,6 @@ export class OSMLGeoAgentStack extends Stack {
   public readonly alb: ApplicationLoadBalancer;
 
   /**
-   * The Network Load Balancer for API Gateway integration.
-   */
-  public readonly nlb: NetworkLoadBalancer;
-
-  /**
-   * The API Gateway REST API.
-   */
-  public readonly restApi: RestApi;
-
-  /**
    * The workspace S3 bucket.
    */
   public readonly workspaceBucket: IBucket;
@@ -103,11 +75,11 @@ export class OSMLGeoAgentStack extends Stack {
    * Creates a new instance of the OSML Geo Agent Stack.
    *
    * This constructor sets up the complete infrastructure for the OSML Geo Agent MCP server,
-   * including the ECS Fargate service, load balancers, API Gateway, S3 workspace, and proper networking and permissions.
+   * including the ECS Fargate service, Application Load Balancer, S3 workspace, and proper networking and permissions.
    *
    * @param { Construct } scope - The construct scope in which to create the stack
    * @param { string } id - The unique identifier for this stack
-   * @param { OSMLGeoAgentStackProps } props - Configuration properties including VPC ID and optional workspace bucket name
+   * @param { OSMLGeoAgentStackProps } props - Configuration properties including VPC and optional workspace bucket name
    */
   constructor(scope: Construct, id: string, props: OSMLGeoAgentStackProps) {
     super(scope, id, props);
@@ -120,7 +92,6 @@ export class OSMLGeoAgentStack extends Stack {
     const mcpServerCpu = props.mcpServerCpu || 2048;
     const mcpServerMemorySize = props.mcpServerMemorySize || 4096;
     const mcpServerPort = props.mcpServerPort || 8080;
-    const apiStageName = props.apiStageName || "prod";
 
     // Use VPC and SecurityGroup passed from NetworkStack
     const vpc = props.vpc;
@@ -224,57 +195,6 @@ export class OSMLGeoAgentStack extends Stack {
       }
     );
 
-    // Create log group for the Lambda authorizer function
-    const authorizerLogGroup = new LogGroup(
-      this,
-      `${serviceNameAbbreviation}-AuthorizerLogGroup`,
-      {
-        logGroupName: `/aws/lambda/${props.projectName}-${serviceNameAbbreviation}-AuthorizerFunction`,
-        retention: RetentionDays.TWO_WEEKS,
-        removalPolicy: removalPolicy
-      }
-    );
-
-    // Create log group for API Gateway access logs
-    const apiGatewayLogGroup = new LogGroup(
-      this,
-      `${serviceNameAbbreviation}-APIGatewayLogGroup`,
-      {
-        logGroupName: `/aws/apigateway/${serviceNameAbbreviation}-MCP-RestApi`,
-        retention: RetentionDays.TWO_WEEKS,
-        removalPolicy: removalPolicy
-      }
-    );
-
-    // Create IAM role for the Lambda authorizer function
-    const authorizerLambdaRole = new Role(
-      this,
-      `${serviceNameAbbreviation}-AuthorizerLambdaRole`,
-      {
-        assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
-        inlinePolicies: {
-          LambdaVPCExecution: new PolicyDocument({
-            statements: [
-              new PolicyStatement({
-                effect: Effect.ALLOW,
-                actions: ["logs:CreateLogStream", "logs:PutLogEvents"],
-                resources: [authorizerLogGroup.logGroupArn]
-              }),
-              new PolicyStatement({
-                effect: Effect.ALLOW,
-                actions: [
-                  "ec2:CreateNetworkInterface",
-                  "ec2:DescribeNetworkInterfaces",
-                  "ec2:DeleteNetworkInterface"
-                ],
-                resources: ["*"]
-              })
-            ]
-          })
-        }
-      }
-    );
-
     // Create ECS cluster
     this.cluster = new Cluster(
       this,
@@ -363,7 +283,7 @@ export class OSMLGeoAgentStack extends Stack {
         desiredCount: 1,
         minHealthyPercent: 100,
         assignPublicIp: false,
-        listenerPort: mcpServerPort,
+        listenerPort: 80, // ALB listens on port 80, forwards to container `MCP_SERVER_PORT`
         publicLoadBalancer: false,
         taskSubnets: {
           subnetType: SubnetType.PRIVATE_WITH_EGRESS
@@ -383,220 +303,15 @@ export class OSMLGeoAgentStack extends Stack {
       interval: Duration.seconds(30)
     });
 
-    // Create Network Load Balancer for API Gateway integration
-    this.nlb = new NetworkLoadBalancer(
-      this,
-      `${serviceNameAbbreviation}-MCPServerNLB`,
-      {
-        vpc: vpc,
-        internetFacing: false,
-        vpcSubnets: {
-          subnetType: SubnetType.PRIVATE_WITH_EGRESS
-        }
-      }
-    );
-
-    // Add listener to NLB that forwards to ALB
-    const nlbListener = this.nlb.addListener(
-      `${serviceNameAbbreviation}-MCPServerNLBListener`,
-      {
-        port: 80,
-        protocol: ElbProtocol.TCP
-      }
-    );
-
-    nlbListener.addTargets(`${serviceNameAbbreviation}-MCPServerNLBTargets`, {
-      targets: [new AlbListenerTarget(this.alb.listeners[0])],
-      port: mcpServerPort
-    });
-
-    // Create VPC Link for API Gateway
-    const vpcLink = new VpcLink(
-      this,
-      `${serviceNameAbbreviation}-MCPServerVpcLink`,
-      {
-        targets: [this.nlb]
-      }
-    );
-
-    // Create HTTP integration for API Gateway - let proxy pass full path to Starlette
-    const mcpServerIntegration = new HttpIntegration(
-      `http://${this.nlb.loadBalancerDnsName}/{proxy}`,
-      {
-        httpMethod: "ANY",
-        proxy: true,
-        options: {
-          vpcLink: vpcLink,
-          connectionType: ConnectionType.VPC_LINK,
-          requestParameters: {
-            "integration.request.path.proxy": "method.request.path.proxy",
-            "integration.request.header.Accept": "method.request.header.Accept",
-            "integration.request.header.Host":
-              "'${this.restApi.restApiId}.execute-api.${this.region}.${this.urlSuffix}'",
-            "integration.request.header.X-Forwarded-Host": "context.domainName",
-            "integration.request.header.X-Forwarded-Proto": "'https'",
-            "integration.request.header.X-Forwarded-Path":
-              "method.request.path.proxy"
-          }
-        }
-      }
-    );
-
-    // Create OSML authorizer
-    const authorizer = new OSMLAuthorizer(
-      this,
-      `${serviceNameAbbreviation}-MCPServerAuthorizer`,
-      {
-        auth: props.auth,
-        name: `${serviceNameAbbreviation}-Authorizer`,
-        vpc: vpc,
-        vpcSubnets: {
-          subnetType: SubnetType.PRIVATE_WITH_EGRESS
-        },
-        lambdaRole: authorizerLambdaRole
-      }
-    );
-
-    // Create request authorizer
-    const requestAuthorizer = new RequestAuthorizer(
-      this,
-      `${serviceNameAbbreviation}-MCPRequestAuthorizer`,
-      {
-        authorizerName: `${serviceNameAbbreviation}-Authorizer`,
-        handler: authorizer.authorizerFunction,
-        identitySources: [IdentitySource.header("Authorization")],
-        resultsCacheTtl: Duration.minutes(0)
-      }
-    );
-
-    // Create WAF Web ACL for API Gateway protection
-    const webAcl = new CfnWebACL(this, "MCPServerWebACL", {
-      scope: "REGIONAL",
-      defaultAction: { allow: {} },
-      rules: [
-        {
-          name: "AWSManagedRulesCommonRuleSet",
-          priority: 1,
-          overrideAction: { none: {} },
-          statement: {
-            managedRuleGroupStatement: {
-              vendorName: "AWS",
-              name: "AWSManagedRulesCommonRuleSet"
-            }
-          },
-          visibilityConfig: {
-            sampledRequestsEnabled: true,
-            cloudWatchMetricsEnabled: true,
-            metricName: "CommonRuleSetMetric"
-          }
-        },
-        {
-          name: "AWSManagedRulesKnownBadInputsRuleSet",
-          priority: 2,
-          overrideAction: { none: {} },
-          statement: {
-            managedRuleGroupStatement: {
-              vendorName: "AWS",
-              name: "AWSManagedRulesKnownBadInputsRuleSet"
-            }
-          },
-          visibilityConfig: {
-            sampledRequestsEnabled: true,
-            cloudWatchMetricsEnabled: true,
-            metricName: "KnownBadInputsMetric"
-          }
-        }
-      ],
-      visibilityConfig: {
-        sampledRequestsEnabled: true,
-        cloudWatchMetricsEnabled: true,
-        metricName: `${serviceNameAbbreviation}-MCPServerWebACL`
-      }
-    });
-
-    // Create the API Gateway REST API
-    this.restApi = new RestApi(
-      this,
-      `${serviceNameAbbreviation}-MCPServerRestApi`,
-      {
-        restApiName: `${serviceNameAbbreviation}-MCP-RestApi`,
-        description: "Geo Agent MCP Server",
-        endpointTypes: [EndpointType.REGIONAL],
-        deployOptions: {
-          stageName: apiStageName,
-          accessLogDestination: new LogGroupLogDestination(apiGatewayLogGroup),
-          accessLogFormat: AccessLogFormat.jsonWithStandardFields({
-            caller: true,
-            httpMethod: true,
-            ip: true,
-            protocol: true,
-            requestTime: true,
-            resourcePath: true,
-            responseLength: true,
-            status: true,
-            user: true
-          }),
-          // Add execution logging for all methods
-          loggingLevel: MethodLoggingLevel.INFO,
-          dataTraceEnabled: true,
-          metricsEnabled: true
-        },
-        defaultIntegration: mcpServerIntegration,
-        defaultMethodOptions: {
-          authorizationType: AuthorizationType.CUSTOM,
-          authorizer: requestAuthorizer,
-          requestParameters: {
-            "method.request.path.proxy": true,
-            "method.request.header.Accept": true
-          }
-        },
-        // Conditionally set CORS - only enable in non-production environments
-        defaultCorsPreflightOptions: !props.prodLike
-          ? {
-              allowOrigins: Cors.ALL_ORIGINS,
-              allowHeaders: [
-                "Content-Type",
-                "X-Amz-Date",
-                "Authorization",
-                "X-Api-Key",
-                "X-Amz-Security-Token",
-                "X-Amz-User-Agent",
-                "Accept",
-                "mcp-session-id",
-                "mcp-protocol-version"
-              ],
-              allowMethods: Cors.ALL_METHODS,
-              allowCredentials: false
-            }
-          : undefined
-      }
-    );
-
-    // Add proxy resource to handle all paths
-    this.restApi.root.addProxy({
-      defaultIntegration: mcpServerIntegration,
-      anyMethod: true
-    });
-
-    // Associate WAF with API Gateway
-    new CfnWebACLAssociation(
-      this,
-      `${serviceNameAbbreviation}-MCPServerWebACLAssociation`,
-      {
-        resourceArn: this.restApi.deploymentStage.stageArn,
-        webAclArn: webAcl.attrArn
-      }
-    );
-
     // Add CDK-NAG suppressions
     if (nagSuppressions.length > 0) {
       NagSuppressions.addResourceSuppressions(this, nagSuppressions, true);
     }
 
-    // Output MCP Server URL and workspace bucket
-    this.exportValue(this.restApi.url, {
-      name: `${serviceNameAbbreviation}-MCPRestApiUrl`,
-      description: "URL of the GeoAgent MCP Server API Gateway"
+    // Output ALB DNS name and workspace bucket
+    this.exportValue(this.alb.loadBalancerDnsName, {
+      name: `${serviceNameAbbreviation}-ALBDnsName`,
+      description: "DNS name of the GeoAgent MCP Server ALB"
     });
 
     this.exportValue(this.workspaceBucket.bucketName, {
