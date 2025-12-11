@@ -116,11 +116,7 @@ describe("cdk-nag Compliance Checks", () => {
       isAdc: false,
       vpc: mockVpc,
       securityGroup: mockSecurityGroup,
-      workspaceBucketName: "fake-test-bucket",
-      auth: {
-        authority: "https://www.auth.com",
-        audience: "mock"
-      }
+      workspaceBucketName: "fake-test-bucket"
     });
 
     // Add the cdk-nag AwsSolutions Pack with extra verbose logging enabled.

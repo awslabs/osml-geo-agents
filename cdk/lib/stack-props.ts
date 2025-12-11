@@ -5,8 +5,6 @@
 import { StackProps } from "aws-cdk-lib";
 import { ISecurityGroup, IVpc } from "aws-cdk-lib/aws-ec2";
 
-import { OSMLAuth } from "./constructs/osml-auth";
-
 /**
  * Properties for configuring the OSML Geo Agent Stack.
  * This interface defines the configuration options needed to deploy
@@ -75,18 +73,6 @@ export interface OSMLGeoAgentStackProps extends StackProps {
    * @default 8080
    */
   mcpServerPort?: number;
-
-  /**
-   * The stage name for the API Gateway deployment.
-   * @default "prod"
-   */
-  apiStageName?: string;
-
-  /**
-   * OSML Auth configuration for API Gateway authorization.
-   * This is required - all APIs must be deployed with proper authentication.
-   */
-  auth: OSMLAuth;
 }
 
 /**
@@ -310,83 +296,6 @@ const validateMcpServerConfig = (
 };
 
 /**
- * Validates the API stage name.
- * @param apiStageName - The API stage name to validate
- * @throws {Error} When validation fails
- */
-const validateApiStageName = (apiStageName?: string): void => {
-  if (apiStageName !== undefined) {
-    validateString(apiStageName, "apiStageName");
-
-    // Stage name should be reasonable length
-    if (apiStageName.length < 1 || apiStageName.length > 128) {
-      throw new Error("API stage name must be between 1 and 128 characters");
-    }
-
-    // Should contain valid characters for API Gateway stage names
-    if (!/^[a-zA-Z0-9_-]+$/.test(apiStageName)) {
-      throw new Error(
-        "API stage name can only contain alphanumeric characters, hyphens, and underscores"
-      );
-    }
-  }
-};
-
-/**
- * Validates the OSML Auth configuration.
- * @param auth - The OSML Auth configuration to validate
- * @throws {Error} When validation fails
- */
-const validateAuth = (auth: OSMLAuth): void => {
-  if (!auth) {
-    throw new Error("auth configuration is required");
-  }
-
-  // The auth object should be a valid object
-  if (typeof auth !== "object") {
-    throw new Error("auth must be a valid OSMLAuth object");
-  }
-
-  const authObj = auth as unknown as Record<string, unknown>; // Validating unknown input, can't assume OSMLAuth interface
-
-  // Check that auth has the required authority field
-  if (
-    !("authority" in authObj) ||
-    typeof authObj.authority !== "string" ||
-    authObj.authority.trim().length === 0
-  ) {
-    throw new Error(
-      "auth.authority is required and must be a non-empty string"
-    );
-  }
-
-  // Check that auth has the required audience field
-  if (
-    !("audience" in authObj) ||
-    typeof authObj.audience !== "string" ||
-    authObj.audience.trim().length === 0
-  ) {
-    throw new Error("auth.audience is required and must be a non-empty string");
-  }
-
-  // Validate that authority looks like a URL
-  try {
-    new URL(authObj.authority);
-  } catch {
-    throw new Error(
-      `auth.authority must be a valid URL, got: ${authObj.authority}`
-    );
-  }
-
-  // Validate that authority uses HTTPS (security best practice for IdP)
-  if (!authObj.authority.startsWith("https://")) {
-    throw new Error(
-      `auth.authority should use HTTPS protocol for security, got: ${authObj.authority}`
-    );
-  }
-};
-
-/**
  * Validates the configuration properties for the OSML Geo Agent Stack.
  *
  * This function performs input validation to ensure that the provided configuration
@@ -403,7 +312,6 @@ export const validateProps = (props: OSMLGeoAgentStackProps): void => {
     validateProjectName(props.projectName);
     validateProdLike(props.prodLike);
     validateIsAdc(props.isAdc);
-    validateAuth(props.auth);
 
     // Validate optional properties
     validateServiceNameAbbreviation(props.serviceNameAbbreviation);
@@ -413,7 +321,6 @@ export const validateProps = (props: OSMLGeoAgentStackProps): void => {
       props.mcpServerMemorySize,
       props.mcpServerPort
     );
-    validateApiStageName(props.apiStageName);
   } catch (error) {
     throw new Error(
       `OSML Geo Agent Stack validation failed: ${error instanceof Error ? error.message : String(error)}`

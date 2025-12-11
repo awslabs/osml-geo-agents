@@ -1,23 +1,40 @@
 # OSML Geo Agents – CDK Infrastructure
 
-This CDK project deploys the core infrastructure for running **OSML Geo Agents** on AWS. It includes a containerized Lambda function for geospatial processing and an **Amazon Bedrock Agent** for orchestration.
+This CDK project deploys the core infrastructure for running **OSML Geo Agents** on AWS. It includes an ECS Fargate service running the MCP server behind an Application Load Balancer (ALB) within a private VPC, and an **Amazon Bedrock Agent** for orchestration.
 
----
+## Security Model
+
+The OSML Geo Agents infrastructure uses **network isolation** as its primary security mechanism:
+
+- **Private VPC Deployment**: The MCP server runs in ECS Fargate within private subnets with no direct internet access
+- **ALB as Entry Point**: The Application Load Balancer is the only entry point, accessible only from within the VPC
+- **No Public Endpoints**: No API Gateway or public-facing endpoints - all access is VPC-internal
+- **Security Groups**: Fine-grained network access control through VPC security groups
+- **IAM Roles**: ECS tasks use IAM roles with least-privilege permissions for AWS service access
 
 ## Architecture Overview
 
 ```ascii
-┌─────────────────┐     ┌──────────────────┐
-│  Amazon Bedrock │     │   Lambda Tools   │
-│     Agent       │────▶│   (Container)    │
-└─────────────────┘     └──────────────────┘
-         │                       │
-         │                       │
-         ▼                       ▼
-┌─────────────────┐     ┌──────────────────┐
-│ Foundation Model│     │   S3 Workspace   │
-└─────────────────┘     └──────────────────┘
+
+Private VPC Access:
+┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│   VPC Client    │────▶│       ALB        │────▶│  ECS Fargate     │
+│                 │     │  (Port 80)       │     │  MCP Server      │
+└─────────────────┘     └──────────────────┘     └──────────────────┘
+                                                           │
+                                                           ▼
+                                                  ┌──────────────────┐
+                                                  │   S3 Workspace   │
+                                                  └──────────────────┘
 ```
+
+---
+
+## Key Features
+
+- **Private VPC Deployment**: The MCP server runs in ECS Fargate within a private VPC, accessible only through the Application Load Balancer
+- **S3 Workspace Integration**: Persistent storage for geospatial data processing
+- **Integration Testing**: Built-in test infrastructure to validate deployed services that run within the VPC
 
 ---
 
@@ -30,7 +47,7 @@ Before deploying, ensure the following tools and resources are available:
 - **Node.js** and **npm** installed
 - **Docker** installed and running (for building container images)
 - An existing **VPC** with private subnets and NAT Gateway
-- An **S3 bucket** for Lambda tool workspace storage
+- An **S3 bucket** for MCP server workspace storage
 
 ---
 
@@ -44,19 +61,30 @@ This file defines your deployment environment. Copy the example file and customi
 cp bin/deployment/deployment.json.example bin/deployment/deployment.json
 ```
 
-Update the contents:
+Update the contents with your environment-specific values:
 
 ```json
 {
   "projectName": "<YOUR-PROJECT-NAME>",
   "account": {
     "id": "<YOUR-ACCOUNT-ID>",
-    "region": "<YOUR-REGION>"
+    "region": "<YOUR-REGION>",
+    "prodLike": false,
+    "isAdc": false
   },
-  "config": {
-    "targetVpcId": "<YOUR-VPC-ID>",
-    "workspaceBucketName": "<YOUR-WORKSPACE-BUCKET-NAME>"
-  }
+  "networkConfig": {
+    "VPC_ID": "<YOUR-VPC-ID>",
+    "TARGET_SUBNETS": ["<SUBNET-1>", "<SUBNET-2>"],
+    "SECURITY_GROUP_ID": "<YOUR-SECURITY-GROUP-ID>"
+  },
+  "geoAgentConfig": {
+    "WORKSPACE_BUCKET_NAME": "<YOUR-WORKSPACE-BUCKET-NAME>",
+    "SERVICE_NAME_ABBREVIATION": "GA",
+    "MCP_SERVER_PORT": 8080,
+    "MCP_SERVER_CPU": 2048,
+    "MCP_SERVER_MEMORY_SIZE": 4096
+  },
+  "deployIntegrationTests": true
 }
 ```
 
@@ -103,7 +131,11 @@ This command will:
 │       ├── deployment.json.example   # Template for creating new configs
 │       └── load-deployment.ts        # Configuration loader and validator
 ├── lib/
-│   ├── osml-geo-agent-stack.ts       # Root CDK stack
+│   ├── network-stack.ts              # VPC and security group configuration
+│   ├── osml-geo-agent-stack.ts       # Main stack: ECS Fargate, ALB, S3 workspace
+│   ├── test-stack.ts                 # Integration test infrastructure
+│   ├── stack-props.ts                # Stack property interfaces and validation
+│   ├── nag-suppressions.ts           # CDK Nag compliance suppressions
 │   └── constructs/
 │       ├── bedrock-agent-lambda.ts   # Bedrock agent construct
 │       └── osml-agent-tool-lambda.ts # Lambda container definition
