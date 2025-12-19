@@ -117,7 +117,7 @@ repos:
     hooks:
       - id: npm-install
         name: Install npm dependencies
-        entry: bash -c 'cd cdk && npm install'
+        entry: bash -c 'cd cdk && npm ci'
         language: system
         files: ^cdk/.*\.(ts|tsx|js|jsx|json)$
         pass_filenames: false

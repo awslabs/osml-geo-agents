@@ -13,7 +13,6 @@
  */
 
 import { App } from "aws-cdk-lib";
-import { IVpc, Vpc } from "aws-cdk-lib/aws-ec2";
 
 import { NetworkStack } from "../lib/network-stack";
 import { OSMLGeoAgentStack } from "../lib/osml-geo-agent-stack";
@@ -38,31 +37,18 @@ const app = new App();
 const deployment = loadDeploymentConfig();
 
 // -----------------------------------------------------------------------------
-// Create VPC (only if importing existing VPC)
-// -----------------------------------------------------------------------------
-
-let vpc: IVpc | undefined;
-if (deployment.networkConfig?.VPC_ID) {
-  // Import existing VPC
-  vpc = Vpc.fromLookup(app, "ImportedVPC", {
-    vpcId: deployment.networkConfig.VPC_ID
-  });
-}
-
-// -----------------------------------------------------------------------------
 // Deploy the network stack
 // -----------------------------------------------------------------------------
 
 const networkStack = new NetworkStack(
   app,
-  `${deployment.projectName}-GeoAgentNetwork`,
+  `${deployment.projectName}-Network`,
   {
     env: {
       account: deployment.account.id,
       region: deployment.account.region
     },
     deployment: deployment,
-    vpc: vpc,
     mcpServerPort: deployment.geoAgentConfig?.MCP_SERVER_PORT
   }
 );
@@ -73,7 +59,7 @@ const networkStack = new NetworkStack(
 
 const geoAgentStack = new OSMLGeoAgentStack(
   app,
-  `${deployment.projectName}-GeoAgent`,
+  `${deployment.projectName}-Dataplane`,
   {
     env: {
       account: deployment.account.id,
@@ -104,7 +90,7 @@ geoAgentStack.node.addDependency(networkStack);
 if (deployment.deployIntegrationTests) {
   const testStack = new TestStack(
     app,
-    `${deployment.projectName}-GeoAgentTest`,
+    `${deployment.projectName}-IntegrationTest`,
     {
       env: {
         account: deployment.account.id,
