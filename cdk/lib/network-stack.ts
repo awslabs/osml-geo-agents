@@ -50,28 +50,14 @@ export class NetworkStack extends Stack {
 
     const mcpServerPort = props.mcpServerPort || 8080;
 
-    // If an existing VPC is provided, we don't need to create a new Network construct
-    // Instead, we'll create a Network construct that wraps the existing VPC
-    if (props.vpc) {
-      // For imported VPCs, we'll create a Network construct that uses the existing VPC
-      const networkConfig = new NetworkConfig({
-        VPC_ID: props.vpc.vpcId
-      });
-      this.network = new Network(this, "Network", {
-        account: props.deployment.account,
-        config: networkConfig,
-        mcpServerPort: mcpServerPort
-      });
-    } else {
-      // Create new VPC using Network construct
-      const networkConfig = props.deployment.networkConfig
-        ? props.deployment.networkConfig
-        : new NetworkConfig();
-      this.network = new Network(this, "Network", {
-        account: props.deployment.account,
-        config: networkConfig,
-        mcpServerPort: mcpServerPort
-      });
-    }
+    // Create Network construct using deployment configuration
+    // The Network construct will handle VPC import or creation based on the config
+    const networkConfig = props.deployment.networkConfig ?? new NetworkConfig();
+    this.network = new Network(this, "Network", {
+      account: props.deployment.account,
+      config: networkConfig,
+      mcpServerPort: mcpServerPort,
+      vpc: props.vpc
+    });
   }
 }

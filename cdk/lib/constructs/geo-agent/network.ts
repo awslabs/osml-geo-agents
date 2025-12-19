@@ -88,6 +88,8 @@ export interface NetworkProps {
   readonly config?: NetworkConfig;
   /** Port for MCP server communication. */
   readonly mcpServerPort: number;
+  /** Optional existing VPC to use directly. */
+  readonly vpc?: IVpc;
 }
 
 /**
@@ -165,6 +167,7 @@ export class Network extends Construct {
 
   /**
    * Resolves a VPC based on configuration.
+   * If a VPC is provided directly, uses it.
    * If VPC_ID is provided, imports the existing VPC.
    * Otherwise, creates a new VPC with default settings.
    *
@@ -172,6 +175,10 @@ export class Network extends Construct {
    * @returns The VPC instance
    */
   private resolveVpc(props: NetworkProps): IVpc {
+    if (props.vpc) {
+      return props.vpc;
+    }
+
     if (this.config.VPC_ID) {
       // Import existing VPC
       return Vpc.fromLookup(this, "ImportedVPC", {

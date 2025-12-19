@@ -66,8 +66,6 @@ export interface DeploymentConfig {
     MCP_SERVER_CPU?: number;
     /** MCP server memory size in MB (optional). */
     MCP_SERVER_MEMORY_SIZE?: number;
-    /** API Gateway stage name (optional). */
-    API_STAGE_NAME?: string;
   };
 
   /** Whether to deploy integration test infrastructure (optional). */
@@ -470,7 +468,6 @@ export function loadDeploymentConfig(): DeploymentConfig {
   let mcpServerPort: number | undefined;
   let mcpServerCpu: number | undefined;
   let mcpServerMemorySize: number | undefined;
-  let apiStageName: string | undefined;
 
   if (config.geoAgentConfig && typeof config.geoAgentConfig === "object") {
     const geoAgentConfigRaw = config.geoAgentConfig as Record<string, unknown>;
@@ -525,14 +522,6 @@ export function loadDeploymentConfig(): DeploymentConfig {
         );
       }
     }
-
-    if (geoAgentConfigRaw.API_STAGE_NAME !== undefined) {
-      apiStageName = validateStringField(
-        geoAgentConfigRaw.API_STAGE_NAME,
-        "geoAgentConfig.API_STAGE_NAME",
-        false
-      );
-    }
   }
 
   // Parse optional deployIntegrationTests flag
@@ -556,8 +545,7 @@ export function loadDeploymentConfig(): DeploymentConfig {
     serviceNameAbbreviation ||
     mcpServerPort ||
     mcpServerCpu ||
-    mcpServerMemorySize ||
-    apiStageName
+    mcpServerMemorySize
   ) {
     geoAgentConfig = {
       ...(workspaceBucketName && {
@@ -570,8 +558,7 @@ export function loadDeploymentConfig(): DeploymentConfig {
       ...(mcpServerCpu && { MCP_SERVER_CPU: mcpServerCpu }),
       ...(mcpServerMemorySize && {
         MCP_SERVER_MEMORY_SIZE: mcpServerMemorySize
-      }),
-      ...(apiStageName && { API_STAGE_NAME: apiStageName })
+      })
     };
   }
 

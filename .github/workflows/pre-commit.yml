@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -38,4 +40,4 @@ jobs:
         run: pre-commit install-hooks
 
       - name: Run pre-commit on all files
-        run: pre-commit run --all-files
+        run: pre-commit run --from-ref origin/main --to-ref HEAD
