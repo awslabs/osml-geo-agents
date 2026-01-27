@@ -1,6 +1,8 @@
-#  Copyright 2025 Amazon.com, Inc. or its affiliates.
+#  Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
 
 import logging
+import math
+import numbers
 from typing import Any, Optional
 
 from ..common import GeoDataReference, LocalAssets, Workspace
@@ -21,6 +23,66 @@ def _truncate_value(value: Any, max_width: int) -> str:
     if len(str_value) > max_width:
         return str_value[: max_width - 3] + "..."
     return str_value
+
+
+def _is_missing(value: Any) -> bool:
+    """
+    Return True if a value should be treated as missing/null.
+
+    Handles None, NaN (Python and NumPy float), and pandas' NAType by name
+    without importing pandas.
+    """
+    if value is None:
+        return True
+
+    # pandas.NA shows up as NAType; avoid importing pandas just to check it.
+    if type(value).__name__ == "NAType":
+        return True
+
+    # Explicit numeric NaN handling (covers NumPy scalars too).
+    # Note: bool is a numbers.Real, but it's never "NaN".
+    if isinstance(value, bool):
+        return False
+
+    if isinstance(value, numbers.Real):
+        try:
+            return math.isnan(float(value))
+        except Exception:
+            return False
+
+    # Complex numbers can contain NaN components.
+    if isinstance(value, numbers.Complex):
+        try:
+            return math.isnan(float(value.real)) or math.isnan(float(value.imag))
+        except Exception:
+            return False
+
+    return False
+
+
+def _is_numeric_dtype(column_dtype: Any) -> bool:
+    """
+    Best-effort numeric dtype check without importing pandas.
+
+    Works for NumPy/pandas dtypes (via .kind). We intentionally *exclude* boolean.
+    """
+    kind = getattr(column_dtype, "kind", None)
+    if isinstance(kind, str):
+        return kind in {"i", "u", "f", "c"}
+
+    return False
+
+
+def _format_cell(value: Any, column_dtype: Any) -> str:
+    """
+    Format a cell value for stable Markdown output.
+
+    - For missing values in non-numeric columns, render as "None"
+    - For missing values in numeric columns, render as "nan" (matches existing expectations)
+    """
+    if _is_missing(value):
+        return "nan" if _is_numeric_dtype(column_dtype) else "None"
+    return str(value)
 
 
 def sample_operation(
@@ -77,7 +139,13 @@ def sample_operation(
 
             # Add data rows
             for _, row in sampled_gdf.iterrows():
-                data_row = "| " + " | ".join(_truncate_value(row[col], max_column_width) for col in columns) + " |"
+                data_row = (
+                    "| "
+                    + " | ".join(
+                        _truncate_value(_format_cell(row[col], sampled_gdf[col].dtype), max_column_width) for col in columns
+                    )
+                    + " |"
+                )
                 text_result.append(data_row)
 
             return "\n".join(text_result)
