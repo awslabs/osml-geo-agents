@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Amazon.com, Inc. or its affiliates.
+ * Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
  */
 
 /**
@@ -53,7 +53,7 @@ export class NetworkConfig extends BaseConfig {
 
   /**
    * Target subnets to use for resources (optional).
-   * Required when VPC_ID is provided.
+   * If not provided, defaults to all private subnets with egress.
    */
   public TARGET_SUBNETS?: string[];
 

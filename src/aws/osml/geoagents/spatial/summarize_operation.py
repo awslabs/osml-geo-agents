@@ -1,6 +1,14 @@
-#  Copyright 2025 Amazon.com, Inc. or its affiliates.
+#  Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
 
 import logging
+
+from pandas.api.types import (
+    is_bool_dtype,
+    is_datetime64_any_dtype,
+    is_numeric_dtype,
+    is_object_dtype,
+    is_string_dtype,
+)
 
 from ..common import GeoDataReference, LocalAssets, Workspace
 from .spatial_utils import load_geo_data_frame
@@ -47,15 +55,26 @@ def summarize_operation(dataset_reference: GeoDataReference, workspace: Workspac
                         metadata = f" ({gdf.attrs['column-descriptions'][col]})"
 
                     # Generate description based on data type
-                    if col_type == "object":
+                    # NOTE: dtype string representations can vary by pandas/numpy versions
+                    # (e.g., "object" vs StringDtype vs python "str"; datetime64[ns] vs [us]).
+                    # Use pandas type helpers to keep output stable across environments.
+                    if is_object_dtype(col_type) or is_string_dtype(col_type):
                         desc = f"{col}: General column{metadata}"
-                    elif col_type in ["int64", "float64"]:
-                        min_val = gdf[col].min()
-                        max_val = gdf[col].max()
-                        desc = f"{col}: Numeric column ({col_type}) ranging from {min_val} to {max_val}{metadata}"
-                    elif col_type == "bool":
+                    # Note: boolean dtypes are sometimes considered "numeric" by pandas helpers,
+                    # so handle them before the numeric check to keep output stable.
+                    elif is_bool_dtype(col_type):
                         desc = f"{col}: Boolean column{metadata}"
-                    elif col_type == "datetime64[ns]":
+                    elif is_numeric_dtype(col_type):
+                        # Preserve prior behavior: only summarize ranges for int64/float64.
+                        # Other numeric dtypes (e.g., int32) are rendered as "Column of type ..."
+                        # to keep output stable for existing expectations.
+                        if str(col_type) in {"int64", "float64"}:
+                            min_val = gdf[col].min()
+                            max_val = gdf[col].max()
+                            desc = f"{col}: Numeric column ({col_type}) ranging from {min_val} to {max_val}{metadata}"
+                        else:
+                            desc = f"{col}: Column of type {col_type}{metadata}"
+                    elif is_datetime64_any_dtype(col_type):
                         desc = f"{col}: Date/time column{metadata}"
                     else:
                         desc = f"{col}: Column of type {col_type}{metadata}"

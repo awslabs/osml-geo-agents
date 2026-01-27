@@ -1,4 +1,4 @@
-#  Copyright 2025 Amazon.com, Inc. or its affiliates.
+#  Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
 
 import os
 import shutil
@@ -33,7 +33,14 @@ class TestWorkspace(unittest.TestCase):
         self.user_id = "shared"
 
         # Initialize workspace with S3 filesystem
-        self.s3.create_bucket(Bucket=self.bucket_name)
+        # S3 CreateBucket requires a LocationConstraint for non-us-east-1 regions.
+        # Some environments/SDK versions default to a non-us-east-1 region which causes:
+        # IllegalLocationConstraintException when the constraint is omitted.
+        region = self.s3.meta.region_name or "us-east-1"
+        create_bucket_kwargs = {"Bucket": self.bucket_name}
+        if region != "us-east-1":
+            create_bucket_kwargs["CreateBucketConfiguration"] = {"LocationConstraint": region}
+        self.s3.create_bucket(**create_bucket_kwargs)
         self.s3fs = S3FileSystem(anon=False)
         self.prefix = f"{self.bucket_name}/{self.user_id}"
         self.workspace = Workspace(filesystem=self.s3fs, prefix=self.prefix)

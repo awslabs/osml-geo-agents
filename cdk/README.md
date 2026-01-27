@@ -90,6 +90,8 @@ Update the contents with your environment-specific values:
 
 **Note:** This file is validated at runtime to ensure all required fields are provided. Deployment will fail if any required fields are missing or invalid.
 
+**Subnet selection:** `networkConfig.TARGET_SUBNETS` is optional. If omitted, the stack will default to all `PRIVATE_WITH_EGRESS` subnets in the selected VPC.
+
 ---
 
 ## Deployment Instructions

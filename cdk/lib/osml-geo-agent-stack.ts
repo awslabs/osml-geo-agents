@@ -1,9 +1,10 @@
 /*
- * Copyright 2025 Amazon.com, Inc. or its affiliates.
+ * Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
  */
 
 import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
 import { SubnetType } from "aws-cdk-lib/aws-ec2";
+import { Platform } from "aws-cdk-lib/aws-ecr-assets";
 import {
   AwsLogDriver,
   AwsLogDriverMode,
@@ -229,7 +230,8 @@ export class OSMLGeoAgentStack extends Stack {
           target: "mcp-server",
           buildArgs: {
             BUILDKIT_INLINE_CACHE: "true"
-          }
+          },
+          platform: Platform.LINUX_AMD64
         }),
         memoryLimitMiB: mcpServerMemorySize,
         logging: new AwsLogDriver({
