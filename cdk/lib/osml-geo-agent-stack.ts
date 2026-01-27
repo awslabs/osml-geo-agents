@@ -2,7 +2,7 @@
  * Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
  */
 
-import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
+import { CfnOutput, Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
 import { SubnetType } from "aws-cdk-lib/aws-ec2";
 import { Platform } from "aws-cdk-lib/aws-ecr-assets";
 import {
@@ -310,15 +310,18 @@ export class OSMLGeoAgentStack extends Stack {
       NagSuppressions.addResourceSuppressions(this, nagSuppressions, true);
     }
 
-    // Output ALB DNS name and workspace bucket
-    this.exportValue(this.alb.loadBalancerDnsName, {
-      name: `${serviceNameAbbreviation}-ALBDnsName`,
-      description: "DNS name of the GeoAgent MCP Server ALB"
+    // Output ALB DNS name
+    new CfnOutput(this, "LoadBalancerDNS", {
+      value: this.alb.loadBalancerDnsName,
+      description: "DNS name of the GeoAgent MCP Server ALB",
+      exportName: `${props.projectName}-LoadBalancerDNS`
     });
 
-    this.exportValue(this.workspaceBucket.bucketName, {
-      name: `${serviceNameAbbreviation}-WorkspaceBucketName`,
-      description: "Name of the GeoAgent S3 workspace bucket"
+    // Output workspace bucket name
+    new CfnOutput(this, "WorkspaceBucketName", {
+      value: this.workspaceBucket.bucketName,
+      description: "Name of the GeoAgent S3 workspace bucket",
+      exportName: `${props.projectName}-WorkspaceBucketName`
     });
   }
 }
