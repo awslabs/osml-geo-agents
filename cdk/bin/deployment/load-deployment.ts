@@ -1,5 +1,5 @@
 /**
- * Copyright 2025 Amazon.com, Inc. or its affiliates.
+ * Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
  */
 
 /**
@@ -441,14 +441,6 @@ export function loadDeploymentConfig(): DeploymentConfig {
           networkConfigRaw.SECURITY_GROUP_ID,
           "networkConfig.SECURITY_GROUP_ID"
         )
-      );
-    }
-
-    // Validate that TARGET_SUBNETS is required when VPC_ID is provided
-    if (vpcId && (!targetSubnets || targetSubnets.length === 0)) {
-      throw new DeploymentConfigError(
-        "When VPC_ID is provided, TARGET_SUBNETS must also be specified with at least one subnet ID",
-        "networkConfig.TARGET_SUBNETS"
       );
     }
 

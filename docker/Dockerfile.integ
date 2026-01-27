@@ -1,12 +1,10 @@
-# Copyright 2025 Amazon.com, Inc. or its affiliates.
+# Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
 
 FROM public.ecr.aws/lambda/python:3.13 AS integ
 
 # Build time arguments
 ARG BUILD_CERT=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
 ARG PIP_INSTALL_LOCATION=https://pypi.org/simple/
-ARG MINICONDA_VERSION=Miniconda3-latest-Linux-x86_64
-ARG MINICONDA_URL=https://repo.anaconda.com/miniconda/${MINICONDA_VERSION}.sh
 ARG CONDA_ENV_NAME="geo_agent_test"
 
 # Define required packages to install
@@ -21,8 +19,16 @@ RUN dnf update -y && dnf clean all && dnf makecache
 # Install all our dependencies
 RUN dnf install -y $PACKAGES
 
-# Install Miniconda
-RUN wget -c ${MINICONDA_URL} && \
+# Install Miniconda with architecture detection
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
+        MINICONDA_VERSION="Miniconda3-latest-Linux-aarch64"; \
+    else \
+        MINICONDA_VERSION="Miniconda3-latest-Linux-x86_64"; \
+    fi && \
+    MINICONDA_URL="https://repo.anaconda.com/miniconda/${MINICONDA_VERSION}.sh" && \
+    echo "Auto-detected architecture: $ARCH, installing: ${MINICONDA_VERSION}" && \
+    wget -c ${MINICONDA_URL} && \
     chmod +x ${MINICONDA_VERSION}.sh && \
     ./${MINICONDA_VERSION}.sh -b -f -p /opt/conda && \
     rm ${MINICONDA_VERSION}.sh && \
