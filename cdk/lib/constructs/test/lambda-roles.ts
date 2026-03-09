@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Amazon.com, Inc. or its affiliates.
+ * Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
  */
 
 /**
@@ -140,11 +140,22 @@ export class LambdaRole extends Construct {
       ]
     });
 
+    // Add permissions for SSM Parameter Store access (to resolve service
+    // endpoints and bucket names at runtime without CDK cross-stack refs)
+    const ssmPolicyStatement = new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["ssm:GetParameter"],
+      resources: [
+        `arn:${this.partition}:ssm:${props.account.region}:${props.account.id}:parameter/*/geo-agent/*`
+      ]
+    });
+
     policy.addStatements(
       lambdaPolicyStatement,
       ec2NetworkPolicyStatement,
       cwPolicyStatement,
-      s3PolicyStatement
+      s3PolicyStatement,
+      ssmPolicyStatement
     );
 
     lambdaRole.addManagedPolicy(policy);

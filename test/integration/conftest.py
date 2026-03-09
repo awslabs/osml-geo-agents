@@ -1,14 +1,14 @@
-# Copyright 2025 Amazon.com, Inc. or its affiliates.
+# Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
 
 
 import logging
-import os
 import re
 from typing import Callable, Dict
 
 import boto3
 import pytest
 
+from .test_config import _resolve_mcp_endpoint, _resolve_workspace_bucket
 from .test_mcp_client import MCPTestClient
 
 logger = logging.getLogger(__name__)
@@ -26,9 +26,7 @@ def mcp_client():
     Returns:
         MCPTestClient: Initialized MCP test client
     """
-    mcp_endpoint = os.environ.get("MCP_ENDPOINT")
-    if not mcp_endpoint:
-        raise ValueError("MCP_ENDPOINT environment variable is required")
+    mcp_endpoint = _resolve_mcp_endpoint()
 
     return MCPTestClient(mcp_endpoint)
 
@@ -47,9 +45,7 @@ def test_datasets() -> Dict[str, str]:
     """
     import uuid
 
-    workspace_bucket = os.environ.get("WORKSPACE_BUCKET")
-    if not workspace_bucket:
-        raise ValueError("WORKSPACE_BUCKET environment variable is required")
+    workspace_bucket = _resolve_workspace_bucket()
 
     s3_client = boto3.client("s3")
     test_run_id = str(uuid.uuid4())[:8]
@@ -105,9 +101,7 @@ def stac_cleanup(request: pytest.FixtureRequest) -> Callable[[str], None]:
         Function to register STAC reference from test result
     """
 
-    workspace_bucket = os.environ.get("WORKSPACE_BUCKET")
-    if not workspace_bucket:
-        raise ValueError("WORKSPACE_BUCKET environment variable is required")
+    workspace_bucket = _resolve_workspace_bucket()
 
     s3_client = boto3.client("s3")
     stac_ref = None

@@ -28,6 +28,7 @@ import {
 } from "aws-cdk-lib/aws-iam";
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
 import { Bucket, BucketEncryption, IBucket } from "aws-cdk-lib/aws-s3";
+import { StringParameter } from "aws-cdk-lib/aws-ssm";
 import { NagSuppressions } from "cdk-nag";
 import { Construct } from "constructs";
 import { join } from "path";
@@ -322,6 +323,22 @@ export class OSMLGeoAgentStack extends Stack {
       value: this.workspaceBucket.bucketName,
       description: "Name of the GeoAgent S3 workspace bucket",
       exportName: `${props.projectName}-WorkspaceBucketName`
+    });
+
+    // Store the ALB DNS name in SSM for consumption without creating
+    // a CloudFormation cross-stack reference.
+    new StringParameter(this, "LoadBalancerDnsParam", {
+      parameterName: `/${props.projectName}/geo-agent/lb-dns`,
+      stringValue: this.alb.loadBalancerDnsName,
+      description: "DNS name of the GeoAgent MCP Server ALB"
+    });
+
+    // Store the workspace bucket name in SSM for consumption without creating
+    // a CloudFormation cross-stack reference.
+    new StringParameter(this, "WorkspaceBucketParam", {
+      parameterName: `/${props.projectName}/geo-agent/workspace-bucket`,
+      stringValue: this.workspaceBucket.bucketName,
+      description: "Name of the GeoAgent S3 workspace bucket"
     });
   }
 }

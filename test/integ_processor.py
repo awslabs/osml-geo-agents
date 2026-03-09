@@ -1,12 +1,12 @@
-# Copyright 2025 Amazon.com, Inc. or its affiliates.
+# Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
 
 """Lambda handler for GeoAgent integration tests using pytest."""
 
-import os
 from typing import Any, Dict
 
 import pytest
 
+from .integration.test_config import _resolve_mcp_endpoint
 from .processor_base import ProcessorBase
 from .utils.logger import logger
 
@@ -42,11 +42,9 @@ class GeoAgentTestProcessor(ProcessorBase):
 
         :param event: The Lambda event dictionary (currently unused but available for future test parameters)
         """
-        # Get configuration from environment variables
-        mcp_endpoint = os.environ.get("MCP_ENDPOINT")
-
-        if not mcp_endpoint:
-            raise ValueError("MCP_ENDPOINT environment variable is required")
+        # Get configuration from environment variables (supports both direct
+        # values and SSM parameter resolution for stack decoupling)
+        mcp_endpoint = _resolve_mcp_endpoint()
 
         # Store for logging purposes
         self.mcp_endpoint = mcp_endpoint
