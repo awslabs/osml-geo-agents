@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Amazon.com, Inc. or its affiliates.
+ * Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
  */
 
 /**
@@ -28,10 +28,6 @@ export interface TestStackProps extends StackProps {
   deployment: DeploymentConfig;
   /** The VPC to use for the test Lambda. */
   vpc: IVpc;
-  /** The ALB DNS name for the MCP server. */
-  albDnsName: string;
-  /** The workspace S3 bucket name for test dataset uploads. */
-  workspaceBucketName: string;
   /** Optional security group for test Lambda. */
   securityGroup?: ISecurityGroup;
   /** Optional existing Lambda role. */
@@ -62,6 +58,12 @@ export class TestStack extends Stack {
 
     this.deployment = props.deployment;
 
+    // Pass the SSM parameter names so the lambda can resolve the geo-agent
+    // ALB DNS and workspace bucket at runtime. This avoids any CDK dependency
+    // between stacks.
+    const albDnsSsmParam = `/${props.deployment.projectName}/geo-agent/lb-dns`;
+    const workspaceBucketSsmParam = `/${props.deployment.projectName}/geo-agent/workspace-bucket`;
+
     // Create Lambda role (tests only need VPC and CloudWatch access)
     this.role = new LambdaRole(this, "GeoAgentLambdaRole", {
       account: props.deployment.account,
@@ -75,8 +77,8 @@ export class TestStack extends Stack {
       vpc: props.vpc,
       lambdaRole: this.role.lambdaRole,
       securityGroup: props.securityGroup,
-      albDnsName: props.albDnsName,
-      workspaceBucketName: props.workspaceBucketName,
+      serviceEndpointSsmParam: albDnsSsmParam,
+      workspaceBucketSsmParam: workspaceBucketSsmParam,
       config: this.deployment.testConfig
     });
   }

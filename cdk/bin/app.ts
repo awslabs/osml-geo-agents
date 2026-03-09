@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /*
- * Copyright 2025 Amazon.com, Inc. or its affiliates.
+ * Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
  */
 
 /**
@@ -88,20 +88,13 @@ geoAgentStack.node.addDependency(networkStack);
 // -----------------------------------------------------------------------------
 
 if (deployment.deployIntegrationTests) {
-  const testStack = new TestStack(
-    app,
-    `${deployment.projectName}-IntegrationTest`,
-    {
-      env: {
-        account: deployment.account.id,
-        region: deployment.account.region
-      },
-      deployment: deployment,
-      vpc: networkStack.network.vpc,
-      albDnsName: geoAgentStack.alb.loadBalancerDnsName,
-      securityGroup: networkStack.network.securityGroup,
-      workspaceBucketName: geoAgentStack.workspaceBucket.bucketName
-    }
-  );
-  testStack.node.addDependency(geoAgentStack);
+  new TestStack(app, `${deployment.projectName}-IntegrationTest`, {
+    env: {
+      account: deployment.account.id,
+      region: deployment.account.region
+    },
+    deployment: deployment,
+    vpc: networkStack.network.vpc,
+    securityGroup: networkStack.network.securityGroup
+  });
 }

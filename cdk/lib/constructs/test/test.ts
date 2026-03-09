@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Amazon.com, Inc. or its affiliates.
+ * Copyright 2025-2026 Amazon.com, Inc. or its affiliates.
  */
 
 /**
@@ -74,10 +74,10 @@ export interface TestProps {
   readonly lambdaRole: IRole;
   /** Optional security group for Lambda. */
   readonly securityGroup?: ISecurityGroup;
-  /** The ALB DNS name for the MCP server. */
-  readonly albDnsName: string;
-  /** The workspace S3 bucket name for test dataset uploads. */
-  readonly workspaceBucketName: string;
+  /** The SSM parameter name containing the MCP server ALB DNS. */
+  readonly serviceEndpointSsmParam: string;
+  /** The SSM parameter name containing the workspace S3 bucket name. */
+  readonly workspaceBucketSsmParam: string;
   /** The test configuration. */
   readonly config?: TestConfig;
 }
@@ -174,8 +174,8 @@ export class Test extends Construct {
       securityGroups: props.securityGroup ? [props.securityGroup] : [],
       logGroup: logGroup,
       environment: {
-        MCP_ENDPOINT: `http://${props.albDnsName}`,
-        WORKSPACE_BUCKET: props.workspaceBucketName,
+        MCP_ENDPOINT_SSM_PARAM: props.serviceEndpointSsmParam,
+        WORKSPACE_BUCKET_SSM_PARAM: props.workspaceBucketSsmParam,
         LOG_LEVEL: "INFO",
         PYTHONUNBUFFERED: "1"
       }
